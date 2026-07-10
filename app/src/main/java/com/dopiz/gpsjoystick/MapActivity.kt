@@ -93,13 +93,41 @@ class MapActivity : AppCompatActivity() {
             (MockLocationService.state.value.speedMps - SpeedModel.MIN_MPS).toInt().coerceAtLeast(0)
         binding.speedSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) MockLocationService.setSpeed(SpeedModel.MIN_MPS + progress)
+                if (fromUser) {
+                    MockLocationService.setSpeed(SpeedModel.MIN_MPS + progress)
+                    // Manual fine-tune no longer matches a preset — clear the chip selection.
+                    binding.speedChips.clearCheck()
+                    SessionStore.saveSpeedChip(this@MapActivity, -1)
+                }
             }
             override fun onStartTrackingTouch(sb: SeekBar?) {}
             override fun onStopTrackingTouch(sb: SeekBar?) {}
         })
 
+        setupSpeedChips()
         observeMockState()
+    }
+
+    /** Feature 1: speed preset chips. Order matches [presetKmh]; drives the shared SpeedModel. */
+    private fun setupSpeedChips() {
+        val chipIds = listOf(binding.chipWalk.id, binding.chipCycle.id, binding.chipDrive.id)
+        binding.speedChips.setOnCheckedStateChangeListener { _, checkedIds ->
+            val idx = chipIds.indexOf(checkedIds.firstOrNull() ?: return@setOnCheckedStateChangeListener)
+            if (idx >= 0) {
+                MockLocationService.setSpeed(presetKmh[idx] / 3.6)
+                SessionStore.saveSpeedChip(this, idx)
+                syncSeekToSpeed()
+            }
+        }
+        val saved = SessionStore.loadSpeedChip(this)
+        if (saved in presetKmh.indices) binding.speedChips.check(chipIds[saved])
+    }
+
+    /** Reflect the shared speed onto the fine-tune slider without re-triggering setSpeed. */
+    private fun syncSeekToSpeed() {
+        val mps = MockLocationService.state.value.speedMps
+        binding.speedSeek.progress =
+            (mps - SpeedModel.MIN_MPS).toInt().coerceIn(0, binding.speedSeek.max)
     }
 
     private fun importGpx(uri: Uri) {
@@ -221,10 +249,52 @@ class MapActivity : AppCompatActivity() {
                         if (s.playback.active && !s.playback.paused) R.string.pause
                         else R.string.resume
                     )
+                    binding.speedValue.text = getString(
+                        R.string.speed_value,
+                        "%.0f".format(s.speedMps * 3.6),
+                        "%.1f".format(s.speedMps),
+                    )
+                    updateHud(s)
                     binding.map.invalidate()
                 }
             }
         }
+    }
+
+    /** Feature 5: compact live playback HUD driven from the shared state. */
+    private fun updateHud(s: MockState) {
+        val pb = s.playback
+        if (!pb.hasRoute) {
+            binding.hudLine.setText(R.string.hud_no_route)
+            binding.hudProgress.progress = 0
+            return
+        }
+        val n = pb.points.size
+        val stateStr = when {
+            pb.active && !pb.paused -> getString(R.string.hud_state_playing)
+            pb.paused -> getString(R.string.hud_state_paused)
+            else -> getString(R.string.hud_state_idle)
+        }
+        val modeStr = getString(
+            if (pb.mode == PlaybackMode.LOOP) R.string.hud_mode_loop else R.string.hud_mode_reverse
+        )
+        val pct = (playbackFraction(pb) * 100).toInt().coerceIn(0, 100)
+        val pointNum = (pb.segmentIndex + 1).coerceIn(1, n)
+        binding.hudLine.text = getString(R.string.hud_line, stateStr, modeStr, pointNum, n, pct)
+        binding.hudProgress.progress = pct
+    }
+
+    /** Fractional progress (0..1) along the polyline: segment index + progress within segment. */
+    private fun playbackFraction(pb: Playback): Double {
+        val n = pb.points.size
+        if (n < 2) return 0.0
+        val idx = pb.segmentIndex.coerceIn(0, n - 1)
+        val nextIdx = idx + if (pb.forward) 1 else -1
+        val segFrac = if (nextIdx in pb.points.indices) {
+            val len = PlaybackEngine.segMeters(pb.points[idx], pb.points[nextIdx])
+            if (len > 0.0) (pb.segmentProgress / len).coerceIn(0.0, 1.0) else 0.0
+        } else 0.0
+        return ((idx + segFrac) / (n - 1)).coerceIn(0.0, 1.0)
     }
 
     override fun onResume() {
@@ -239,5 +309,8 @@ class MapActivity : AppCompatActivity() {
 
     private companion object {
         const val TAP_THRESHOLD_PX = 60f
+
+        /** Feature 1 speed presets in km/h, in chip order: Walk / Cycle / Drive. */
+        val presetKmh = listOf(5.0, 15.0, 40.0)
     }
 }

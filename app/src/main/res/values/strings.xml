@@ -35,6 +35,38 @@
     <string name="start_index_set">起點設為第 %1$d 點（共 %2$d 點）</string>
     <string name="map_route_hint">已載入路線：點路線上的點設為起點，點其他處瞬移</string>
 
+    <!-- Feature 1: speed presets + dual-unit speed readout -->
+    <string name="speed_preset_walk">步行 5 km/h</string>
+    <string name="speed_preset_cycle">騎車 15 km/h</string>
+    <string name="speed_preset_drive">開車 40 km/h</string>
+    <string name="speed_value">速度 %1$s km/h（%2$s m/s）</string>
+
+    <!-- Feature 5: playback HUD -->
+    <string name="hud_no_route">尚無路線，匯入 GPX 後顯示進度</string>
+    <string name="hud_state_playing">播放中</string>
+    <string name="hud_state_paused">暫停</string>
+    <string name="hud_state_idle">待機</string>
+    <string name="hud_mode_loop">循環</string>
+    <string name="hud_mode_reverse">往返</string>
+    <string name="hud_line">%1$s · %2$s · 點 %3$d/%4$d · %5$d%%</string>
+
+    <!-- Feature 2: joystick direction lock -->
+    <string name="lock_on">方向鎖定：開（免持自動前進）</string>
+    <string name="lock_off">方向鎖定：關</string>
+
+    <!-- Feature 3: coordinate search + favorites -->
+    <string name="hint_coord">貼上座標，如 25.0339, 121.5645</string>
+    <string name="coord_go">前往</string>
+    <string name="coord_invalid">座標格式錯誤，請輸入「緯度, 經度」（緯度 -90~90，經度 -180~180）</string>
+    <string name="coord_teleport">前往 %1$s, %2$s</string>
+    <string name="fav_save">收藏目前座標</string>
+    <string name="fav_open">收藏清單</string>
+    <string name="fav_saved">已收藏 %1$s</string>
+    <string name="fav_title">收藏地點</string>
+    <string name="fav_empty">尚無收藏，點星號按鈕收藏目前座標</string>
+    <string name="fav_delete">刪除</string>
+    <string name="pin_dropped">已在 %1$s, %2$s 放置圖釘並瞬移</string>
+
     <!-- Onboarding (Slice 11) -->
     <string name="onboarding_title">首次設定（3 步）</string>
     <string name="onboarding_step1">授予定位權限</string>

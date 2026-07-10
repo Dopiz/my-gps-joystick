@@ -65,6 +65,18 @@ object SessionStore {
         )
     }
 
+    // --- Feature 1: last-selected speed preset chip (index; -1 = none) ---
+    private const val PREFS_UI = "ui_prefs"
+    private const val K_SPEED_CHIP = "speed_chip"
+
+    fun saveSpeedChip(context: Context, index: Int) {
+        context.getSharedPreferences(PREFS_UI, Context.MODE_PRIVATE)
+            .edit().putInt(K_SPEED_CHIP, index).apply()
+    }
+
+    fun loadSpeedChip(context: Context): Int =
+        context.getSharedPreferences(PREFS_UI, Context.MODE_PRIVATE).getInt(K_SPEED_CHIP, -1)
+
     private fun encodeRoute(points: List<GeoPt>): String =
         points.joinToString(";") { "${it.lat},${it.lng}" }
 

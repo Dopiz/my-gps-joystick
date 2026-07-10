@@ -51,6 +51,109 @@
                     android:textAppearance="@style/TextAppearance.GpsJoystick.Label" />
             </LinearLayout>
 
+            <!-- Feature 3: paste/enter coordinates + favorites -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="8dp">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/coordInputLayout"
+                    style="@style/Widget.GpsJoystick.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/coordInput"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textNoSuggestions"
+                        android:imeOptions="actionGo"
+                        android:maxLines="1"
+                        android:hint="@string/hint_coord" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnCoordGo"
+                    style="@style/Widget.GpsJoystick.Button.Tonal"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:text="@string/coord_go" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnFavSave"
+                    style="@style/Widget.GpsJoystick.Button.Outlined"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:minWidth="48dp"
+                    android:insetLeft="0dp"
+                    android:insetRight="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="★" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnFavList"
+                    style="@style/Widget.GpsJoystick.Button.Outlined"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:minWidth="48dp"
+                    android:insetLeft="0dp"
+                    android:insetRight="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="☰" />
+            </LinearLayout>
+
+            <!-- Feature 1: speed presets -->
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/speedChips"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:singleLine="true"
+                app:singleSelection="true"
+                app:selectionRequired="false">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipWalk"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:text="@string/speed_preset_walk" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipCycle"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:text="@string/speed_preset_cycle" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipDrive"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:text="@string/speed_preset_drive" />
+            </com.google.android.material.chip.ChipGroup>
+
+            <TextView
+                android:id="@+id/speedValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:fontFeatureSettings="tnum"
+                android:textAppearance="@style/TextAppearance.GpsJoystick.Mono" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -93,6 +196,27 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:text="@string/mode_loop" />
+
+            <!-- Feature 5: playback HUD -->
+            <TextView
+                android:id="@+id/hudLine"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:fontFeatureSettings="tnum"
+                android:text="@string/hud_no_route"
+                android:textAppearance="@style/TextAppearance.GpsJoystick.Mono" />
+
+            <ProgressBar
+                android:id="@+id/hudProgress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:layout_marginTop="4dp"
+                android:max="100"
+                android:progress="0"
+                android:progressTint="@color/status_active"
+                android:progressBackgroundTint="@color/outline" />
 
             <LinearLayout
                 android:layout_width="match_parent"
