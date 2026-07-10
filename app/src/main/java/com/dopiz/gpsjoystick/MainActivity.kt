@@ -17,7 +17,6 @@ import kotlinx.coroutines.launch
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private var overlayShown = false
 
     private val locationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -46,21 +45,17 @@ class MainActivity : AppCompatActivity() {
             startActivity(PermissionChecker.overlaySettingsIntent(this))
         }
 
-        // Button 1: 模擬開/關 toggle — 開始模擬 (orange, real GPS) ↔ 停止模擬 (green, mocking).
+        // 模擬開/關 toggle — 開始模擬 (orange, real GPS) ↔ 停止模擬 (green, mocking).
+        // Starting mock also brings up the floating overlay (hub + joystick); stopping tears it down.
         binding.btnMockToggle.setOnClickListener {
             if (MockLocationService.state.value.isRunning) {
                 MockLocationService.stop(this)
+                OverlayService.hide(this)
             } else {
                 startMock()
             }
         }
-        // Button 2: 回到真實定位 — re-seed the injected position to the device's REAL location
-        // WITHOUT stopping the mock. Enabled only while mocking is running.
-        binding.btnRecenterReal.setOnClickListener {
-            MockLocationService.recenterToReal(this)
-        }
 
-        binding.btnToggleOverlay.setOnClickListener { toggleOverlay() }
         binding.btnOpenMap.setOnClickListener {
             startActivity(android.content.Intent(this, MapActivity::class.java))
         }
@@ -84,21 +79,13 @@ class MainActivity : AppCompatActivity() {
         }
         // No manual coordinate: the service seeds from the current real location.
         MockLocationService.startAtRealLocation(this)
-    }
-
-    private fun toggleOverlay() {
-        if (!PermissionChecker.isOverlayGranted(this)) {
-            Toast.makeText(this, "請先授予懸浮窗權限", Toast.LENGTH_LONG).show()
-            startActivity(PermissionChecker.overlaySettingsIntent(this))
-            return
-        }
-        overlayShown = !overlayShown
-        if (overlayShown) {
-            OverlayService.show(this)
-            binding.btnToggleOverlay.setText(R.string.hide_overlay)
+        // Bring up the floating overlay (hub + joystick) alongside the mock. If overlay permission
+        // is missing we still start mocking, but guide the user to grant it so the joystick appears.
+        if (PermissionChecker.isOverlayGranted(this)) {
+            OverlayService.showAll(this)
         } else {
-            OverlayService.hide(this)
-            binding.btnToggleOverlay.setText(R.string.show_overlay)
+            Toast.makeText(this, R.string.overlay_needed_for_joystick, Toast.LENGTH_LONG).show()
+            startActivity(PermissionChecker.overlaySettingsIntent(this))
         }
     }
 
@@ -125,25 +112,11 @@ class MainActivity : AppCompatActivity() {
         binding.btnMockToggle.setText(
             if (s.isRunning) R.string.stop_mock else R.string.start_mock
         )
-        // Button 2 (回到真實定位) only makes sense while mocking; disable + dim otherwise.
-        binding.btnRecenterReal.isEnabled = s.isRunning
-        renderPermissions(s)
+        renderPermissions()
     }
 
-    private fun renderPermissions(serviceState: MockState = MockLocationService.state.value) {
-        val p = PermissionChecker.status(this)
-        renderOnboarding(p)
-        binding.statusText.text = buildString {
-            appendLine("Location granted  : ${mark(p.locationGranted)}")
-            appendLine("Mock app selected : ${mark(p.isMockAppSelected)}")
-            appendLine("Overlay granted   : ${mark(p.overlayGranted)}")
-            appendLine("Notifications     : ${mark(p.notificationsGranted)}")
-            appendLine("Mock running      : ${mark(serviceState.isRunning)}")
-            appendLine("Speed             : ${"%.0f".format(serviceState.speedMps)} m/s")
-            appendLine("Direction         : ${serviceState.direction}")
-            append("Position          : ${"%.5f".format(serviceState.latitude)}, " +
-                "%.5f".format(serviceState.longitude))
-        }
+    private fun renderPermissions() {
+        renderOnboarding(PermissionChecker.status(this))
     }
 
     /**
@@ -172,6 +145,4 @@ class MainActivity : AppCompatActivity() {
             notificationsPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
-
-    private fun mark(ok: Boolean) = if (ok) "YES" else "no"
 }

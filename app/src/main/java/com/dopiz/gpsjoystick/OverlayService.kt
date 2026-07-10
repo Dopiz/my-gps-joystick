@@ -91,6 +91,8 @@ class OverlayService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
+            // Mock-start path: show the hub AND the joystick together by default.
+            ACTION_SHOW_ALL -> showHub(alsoJoystick = true)
             else -> showHub()
         }
         return START_STICKY
@@ -100,14 +102,18 @@ class OverlayService : Service() {
     // Hub window
     // ---------------------------------------------------------------------------------------
 
-    private fun showHub() {
+    private fun showHub(alsoJoystick: Boolean = false) {
         if (!Settings.canDrawOverlays(this)) {
             Toast.makeText(this, "尚未授予懸浮窗權限", Toast.LENGTH_LONG).show()
             stopSelf()
             return
         }
         startForegroundCompat()
-        if (hubView != null) return
+        if (hubView != null) {
+            // Hub already up (e.g. re-tapped 開始模擬): still honour a show-all request.
+            if (alsoJoystick && joystickView == null) showJoystick()
+            return
+        }
 
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val view = RadialMenuView(this)
@@ -150,8 +156,9 @@ class OverlayService : Service() {
         applyState()
         startObserving()
 
-        // Re-show the joystick if it was visible last time.
-        if (SessionStore.loadJoystickVisible(this)) showJoystick()
+        // On a fresh 開始模擬 the joystick shows by default; otherwise re-show it only if it was
+        // visible last time.
+        if (alsoJoystick || SessionStore.loadJoystickVisible(this)) showJoystick()
     }
 
     private fun buildChildren() {
@@ -597,6 +604,7 @@ class OverlayService : Service() {
 
     companion object {
         const val ACTION_SHOW = "com.dopiz.gpsjoystick.overlay.SHOW"
+        const val ACTION_SHOW_ALL = "com.dopiz.gpsjoystick.overlay.SHOW_ALL"
         const val ACTION_HIDE = "com.dopiz.gpsjoystick.overlay.HIDE"
 
         private const val CHANNEL_ID = "overlay_joystick"
@@ -607,6 +615,11 @@ class OverlayService : Service() {
 
         fun show(context: Context) {
             context.startService(Intent(context, OverlayService::class.java).setAction(ACTION_SHOW))
+        }
+
+        /** Show the hub AND the joystick together (the mock-start path). */
+        fun showAll(context: Context) {
+            context.startService(Intent(context, OverlayService::class.java).setAction(ACTION_SHOW_ALL))
         }
 
         fun hide(context: Context) {

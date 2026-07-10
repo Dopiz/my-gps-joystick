@@ -199,14 +199,6 @@
                     android:layout_marginTop="12dp"
                     android:text="@string/start_mock" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnRecenterReal"
-                    style="@style/Widget.GpsJoystick.Button.Outlined"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="@string/return_real" />
-
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -214,59 +206,23 @@
                     android:layout_marginTop="8dp">
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnToggleOverlay"
-                        style="@style/Widget.GpsJoystick.Button.Outlined"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginEnd="4dp"
-                        android:text="@string/show_overlay" />
-
-                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnOpenMap"
                         style="@style/Widget.GpsJoystick.Button.Outlined"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:layout_marginStart="4dp"
+                        android:layout_marginEnd="4dp"
                         android:text="@string/open_map" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnOpenGpx"
+                        style="@style/Widget.GpsJoystick.Button.Outlined"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="4dp"
+                        android:text="@string/gpx_manage" />
                 </LinearLayout>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnOpenGpx"
-                    style="@style/Widget.GpsJoystick.Button.Outlined"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="@string/gpx_manage" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Status readout -->
-        <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.GpsJoystick.Card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/section_status"
-                    android:textAppearance="@style/TextAppearance.GpsJoystick.Title"
-                    android:paddingBottom="8dp" />
-
-                <TextView
-                    android:id="@+id/statusText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:fontFeatureSettings="tnum"
-                    android:textAppearance="@style/TextAppearance.GpsJoystick.Mono" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
     </LinearLayout>

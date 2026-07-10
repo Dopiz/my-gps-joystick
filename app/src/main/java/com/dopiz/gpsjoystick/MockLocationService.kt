@@ -80,23 +80,6 @@ class MockLocationService : Service() {
                     _state.update { it.copy(latitude = lat, longitude = lng) }
                 }
             }
-            ACTION_RECENTER -> {
-                // Re-seed the injected position to the device's current REAL location WITHOUT
-                // stopping mocking. Best-effort: if no non-mock fix is available, leave as-is.
-                val real = lastKnownReal()
-                if (real != null) {
-                    // A recenter is an explicit teleport: it wins over any active playback/glide.
-                    _state.update {
-                        it.copy(
-                            latitude = real.latitude,
-                            longitude = real.longitude,
-                            glideActive = false,
-                            playback = it.playback.copy(active = false, paused = false),
-                        )
-                    }
-                    SessionStore.save(this, _state.value)
-                }
-            }
             ACTION_STOP -> {
                 stopInjecting()
                 return START_NOT_STICKY
@@ -409,7 +392,6 @@ class MockLocationService : Service() {
         const val ACTION_START = "com.dopiz.gpsjoystick.action.START"
         const val ACTION_STOP = "com.dopiz.gpsjoystick.action.STOP"
         const val ACTION_UPDATE = "com.dopiz.gpsjoystick.action.UPDATE"
-        const val ACTION_RECENTER = "com.dopiz.gpsjoystick.action.RECENTER"
         const val EXTRA_LAT = "lat"
         const val EXTRA_LNG = "lng"
         // Distinguishes a GPX-playback start (keeps the live playback cursor) from a plain-mock
@@ -468,17 +450,6 @@ class MockLocationService : Service() {
         fun stop(context: Context) {
             val intent = Intent(context, MockLocationService::class.java)
                 .setAction(ACTION_STOP)
-            context.startService(intent)
-        }
-
-        /**
-         * Re-seed the running mock to the device's current REAL location without stopping the
-         * mock. No-op if mocking is not running or no non-mock fix is available (best-effort).
-         * The screens task wires this to a "回到真實定位" control; no UI is wired here.
-         */
-        fun recenterToReal(context: Context) {
-            val intent = Intent(context, MockLocationService::class.java)
-                .setAction(ACTION_RECENTER)
             context.startService(intent)
         }
 
