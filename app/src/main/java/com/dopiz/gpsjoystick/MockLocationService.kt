@@ -47,37 +47,44 @@ class MockLocationService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    override fun onCreate() {
-        super.onCreate()
-        // Fresh process (e.g. after a process kill): rehydrate the last session so the
-        // null-intent restart path below can resume the last position + playback. Guard on the
-        // in-memory state still being untouched (no running session, no route loaded yet) so a
-        // normal first start driven by the UI — which has already populated the shared state —
-        // is never clobbered by a stale persisted session.
-        val s = _state.value
-        if (!s.isRunning && s.playback.points.isEmpty()) {
-            SessionStore.load(this)?.let { restored -> _state.update { restored } }
-        }
-    }
-
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
                 val lat = intent.getDoubleExtra(EXTRA_LAT, _state.value.latitude)
                 val lng = intent.getDoubleExtra(EXTRA_LNG, _state.value.longitude)
+                // Explicit user Start of plain mock must win: discard any leftover/persisted
+                // playback session so it cannot hijack the coordinate the user just entered.
+                // GPX playback goes through EXTRA_PLAYBACK=true and keeps its live cursor.
+                if (!intent.getBooleanExtra(EXTRA_PLAYBACK, false)) {
+                    _state.update { it.copy(playback = Playback()) }
+                }
                 startInjecting(lat, lng)
             }
             ACTION_UPDATE -> {
                 val lat = intent.getDoubleExtra(EXTRA_LAT, _state.value.latitude)
                 val lng = intent.getDoubleExtra(EXTRA_LNG, _state.value.longitude)
-                _state.update { it.copy(latitude = lat, longitude = lng) }
+                // Teleport is an explicit user action: it wins over any active playback.
+                _state.update {
+                    it.copy(
+                        latitude = lat,
+                        longitude = lng,
+                        playback = it.playback.copy(active = false, paused = false),
+                    )
+                }
             }
             ACTION_STOP -> {
                 stopInjecting()
                 return START_NOT_STICKY
             }
             else -> {
-                // Restarted by the system after a kill (null intent): resume last coords.
+                // System-initiated restart after a process kill (null intent, START_STICKY):
+                // ONLY here do we rehydrate the persisted session, and only when the in-memory
+                // state is still pristine (genuinely fresh process) — never clobbering a live,
+                // UI-driven session. This is the sole restore path so an explicit Start above
+                // can never be hijacked by a stale persisted route.
+                if (_state.value == MockState()) {
+                    SessionStore.load(this)?.let { restored -> _state.update { restored } }
+                }
                 if (_state.value.isRunning) {
                     startInjecting(_state.value.latitude, _state.value.longitude)
                 }
@@ -215,7 +222,11 @@ class MockLocationService : Service() {
             locationManager.setTestProviderEnabled(LocationManager.GPS_PROVIDER, false)
             locationManager.removeTestProvider(LocationManager.GPS_PROVIDER)
         }
-        _state.update { it.copy(isRunning = false) }
+        // Ending the session must also end any playback, so a later Start is clean and the
+        // persisted active-session flag (pb_active) does not resurrect a session the user ended.
+        _state.update {
+            it.copy(isRunning = false, playback = it.playback.copy(active = false, paused = false))
+        }
         SessionStore.save(this, _state.value)
         stopSelfCleanup()
     }
@@ -300,6 +311,9 @@ class MockLocationService : Service() {
         const val ACTION_UPDATE = "com.dopiz.gpsjoystick.action.UPDATE"
         const val EXTRA_LAT = "lat"
         const val EXTRA_LNG = "lng"
+        // Distinguishes a GPX-playback start (keeps the live playback cursor) from a plain-mock
+        // Start (which discards any playback so it injects exactly the given coordinate).
+        const val EXTRA_PLAYBACK = "playback"
 
         private const val CHANNEL_ID = "mock_location"
         private const val NOTIFICATION_ID = 1001
@@ -308,11 +322,22 @@ class MockLocationService : Service() {
         private val _state = MutableStateFlow(MockState())
         val state: StateFlow<MockState> = _state.asStateFlow()
 
+        /** Plain-mock Start (user tapped Start). Discards any leftover playback session. */
         fun start(context: Context, lat: Double, lng: Double) {
             val intent = Intent(context, MockLocationService::class.java)
                 .setAction(ACTION_START)
                 .putExtra(EXTRA_LAT, lat)
                 .putExtra(EXTRA_LNG, lng)
+            context.startForegroundService(intent)
+        }
+
+        /** GPX-playback Start: keeps the live playback cursor already set via [play]. */
+        fun startPlayback(context: Context, lat: Double, lng: Double) {
+            val intent = Intent(context, MockLocationService::class.java)
+                .setAction(ACTION_START)
+                .putExtra(EXTRA_LAT, lat)
+                .putExtra(EXTRA_LNG, lng)
+                .putExtra(EXTRA_PLAYBACK, true)
             context.startForegroundService(intent)
         }
 
@@ -340,9 +365,14 @@ class MockLocationService : Service() {
         }
 
         fun setDirection(direction: Direction) {
-            // Explicit cardinal input overrides any live joystick heading.
+            // Explicit cardinal input overrides any live joystick heading AND any active
+            // playback — manual control always wins over a running route.
             _state.update {
-                it.copy(direction = direction, headingActive = false)
+                it.copy(
+                    direction = direction,
+                    headingActive = false,
+                    playback = it.playback.copy(active = false, paused = false),
+                )
             }
         }
 
@@ -364,6 +394,8 @@ class MockLocationService : Service() {
                     headingEast = east,
                     speedMps = speed,
                     direction = Direction.NONE,
+                    // Driving the joystick is explicit manual control: it wins over playback.
+                    playback = it.playback.copy(active = false, paused = false),
                 )
             }
         }

@@ -186,8 +186,9 @@ class MapActivity : AppCompatActivity() {
         val startIdx = MockLocationService.state.value.playback.segmentIndex
             .coerceIn(0, routePts.size - 1)
         val start = routePts[startIdx]
-        // Ensure the injecting service is running, positioned at the start point.
-        MockLocationService.start(this, start.lat, start.lng)
+        // Ensure the injecting service is running, positioned at the start point. Use the
+        // playback-aware start so it does NOT discard the route we are about to play.
+        MockLocationService.startPlayback(this, start.lat, start.lng)
         MockLocationService.play()
         binding.mapStatus.text = getString(R.string.playback_started, startIdx + 1)
     }
