@@ -1,6 +1,10 @@
 package com.dopiz.gpsjoystick
 
+import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -10,9 +14,11 @@ import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polyline
 import java.io.File
 
 /**
@@ -25,6 +31,12 @@ class MapActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMapBinding
     private lateinit var marker: Marker
     private var centeredOnce = false
+    private var gpxPolyline: Polyline? = null
+
+    private val openGpxLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            uri?.let { importGpx(it) }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,7 +72,45 @@ class MapActivity : AppCompatActivity() {
         }
         binding.map.overlays.add(0, MapEventsOverlay(tapReceiver))
 
+        binding.btnImportGpx.setOnClickListener {
+            // Broad filter: many providers report .gpx as octet-stream or xml, not gpx+xml.
+            openGpxLauncher.launch(
+                arrayOf("application/gpx+xml", "application/xml", "text/xml", "*/*")
+            )
+        }
+
         observeMockState()
+    }
+
+    private fun importGpx(uri: Uri) {
+        val points = try {
+            contentResolver.openInputStream(uri)?.use { GpxParser.parse(it) }
+        } catch (e: Exception) {
+            Toast.makeText(this, "${getString(R.string.gpx_error)}: ${e.message}", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (points.isNullOrEmpty()) {
+            Toast.makeText(this, R.string.gpx_empty, Toast.LENGTH_LONG).show()
+            return
+        }
+        drawTrack(points)
+        binding.mapStatus.text = getString(R.string.gpx_loaded, points.size)
+    }
+
+    private fun drawTrack(points: List<GeoPoint>) {
+        gpxPolyline?.let { binding.map.overlays.remove(it) }
+        val line = Polyline(binding.map).apply {
+            setPoints(points)
+            outlinePaint.color = Color.rgb(211, 47, 47)
+            outlinePaint.strokeWidth = 8f
+        }
+        gpxPolyline = line
+        binding.map.overlays.add(line)
+        // Fit the whole track; post so the map has a measured size for the zoom math.
+        binding.map.post {
+            binding.map.zoomToBoundingBox(BoundingBox.fromGeoPoints(points), true, 64)
+        }
+        binding.map.invalidate()
     }
 
     private fun teleport(p: GeoPoint) {
