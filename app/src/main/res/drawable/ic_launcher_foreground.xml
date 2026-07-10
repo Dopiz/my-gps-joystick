@@ -4,25 +4,20 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Joystick base ring -->
+    <!-- Subtle drop shadow under the pin tip -->
     <path
-        android:strokeColor="#3B82F6"
-        android:strokeWidth="5"
-        android:strokeAlpha="0.55"
-        android:fillColor="#00000000"
-        android:pathData="M54,54m-30,0a30,30 0,1 0,60 0a30,30 0,1 0,-60 0" />
-    <!-- Joystick stem -->
+        android:fillColor="#33000000"
+        android:pathData="M54,86m-11,0a11,4 0,1 0,22 0a11,4 0,1 0,-22 0" />
+    <!-- White location pin (teardrop), centered in the safe zone -->
     <path
-        android:strokeColor="#3B82F6"
-        android:strokeWidth="6"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M54,54 L64,40" />
-    <!-- Knob -->
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,24 C42.39,24 33,33.39 33,45 C33,60.75 54,84 54,84 C54,84 75,60.75 75,45 C75,33.39 65.61,24 54,24 Z" />
+    <!-- Joystick knob: blue disc set into the pin head -->
     <path
-        android:fillColor="#3B82F6"
-        android:pathData="M64,40m-13,0a13,13 0,1 0,26 0a13,13 0,1 0,-26 0" />
+        android:fillColor="#FF2563EB"
+        android:pathData="M54,45m-13,0a13,13 0,1 0,26 0a13,13 0,1 0,-26 0" />
+    <!-- 4-way directional accent (white plus) inside the knob -->
     <path
-        android:fillColor="#DBEAFE"
-        android:pathData="M64,40m-5,0a5,5 0,1 0,10 0a5,5 0,1 0,-10 0" />
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M52.4,36.5h3.2v7h7v3.2h-7v7h-3.2v-7h-7v-3.2h7z" />
 </vector>
