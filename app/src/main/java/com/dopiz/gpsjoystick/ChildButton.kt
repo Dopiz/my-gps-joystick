@@ -247,9 +247,13 @@ class ChildButton(
         const val ICON_FRAC = 0.58f
 
         // Material Symbols icon geometry (Apache-2.0), single filled path, 24x24 viewport.
+        // sports_esports (game controller) — a clean, instantly-legible "joystick" glyph.
         const val JOYSTICK_PATH =
-            "M15 7.5V2H9v5.5l3 3 3-3zM7.5 9H2v6h5.5l3-3-3-3zM9 16.5V22h6v-5.5l-3-3-3 3zM16.5 9l-3 " +
-            "3 3 3H22V9h-5.5z"
+            "M21.58 16.09l-1.09-7.66C20.21 6.46 18.52 5 16.53 5H7.47C5.48 5 3.79 6.46 3.51 8.43l-1" +
+            ".09 7.66C2.2 17.63 3.39 19 4.94 19c.68 0 1.32-.27 1.8-.75L9 15h6l2.25 3.25c.48.48 1.13" +
+            ".75 1.8.75 1.56 0 2.75-1.37 2.53-2.91zM11 11H9v2H8v-2H6v-1h2V8h1v2h2v1zm4-1c-.55 0-1-" +
+            ".45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm2 3c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-" +
+            "1 1z"
         const val PLAY_PATH = "M8 5v14l11-7z"
         const val PAUSE_PATH = "M6 19h4V5H6v14zm8-14v14h4V5h-4z"
         const val SPEED_PATH =

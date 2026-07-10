@@ -27,14 +27,18 @@ import kotlinx.coroutines.launch
 /**
  * Hosts the floating overlay(s) (SYSTEM_ALERT_WINDOW) that must survive switching to other apps.
  *
- * Owns two independent, content-sized windows:
- *  - the [RadialMenuView] HUB (speed-dial control menu): a small draggable circle that resizes
- *    its own window to fan out child buttons on expand and shrinks back on collapse.
- *  - the [JoystickView] window, toggled by the hub's 搖桿 child button.
+ * Window model — EVERY interactive element is its own small content-sized overlay window:
+ *  - the HUB ([RadialMenuView]) window (a fixed [RadialMenuView.hubPx] square) that never resizes,
+ *    so its centre stays put; tapping it toggles expand/collapse.
+ *  - one window per VISIBLE child button (地圖 / 搖桿 / 鎖定 / 速度) and per visible sub-row button
+ *    (走/跑/車 off 速度, 開啟地圖頁 + GPX off 地圖).
+ *  - the [JoystickView] window, toggled by the 搖桿 child.
  *
- * Both use FLAG_NOT_TOUCH_MODAL so touches outside the (content-sized) windows fall through to
- * the app behind. A [MockLocationService] state observer keeps the hub's buttons reflecting the
- * live joystick-visible / paused / active-speed state.
+ * Because each button has its own tiny window and the GAPS between them have no window at all, every
+ * window uses FLAG_NOT_FOCUSABLE|FLAG_NOT_TOUCH_MODAL, so taps on the empty areas fall straight
+ * through to the app behind while the menu stays expanded. The menu only collapses when the user
+ * taps the hub (✕). A [MockLocationService] state observer keeps the buttons reflecting the live
+ * joystick-visible / GPX / lock / active-speed state.
  */
 class OverlayService : Service() {
 
@@ -43,14 +47,31 @@ class OverlayService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var observeJob: Job? = null
 
-    // --- Hub window state ---
+    // --- Hub window ---
     private var hubView: RadialMenuView? = null
     private var hubParams: WindowManager.LayoutParams? = null
-    private var winW = 0
-    private var winH = 0
-    private var hubInWinX = 0f
-    private var hubInWinY = 0f
-    // Fan-out directions (see RadialMenuView): +1 column down / row right, -1 up / left.
+
+    // --- Child buttons (each hosted in its own window when visible) ---
+    private var btnMap: ChildButton? = null
+    private var btnJoystick: ChildButton? = null
+    private var btnLock: ChildButton? = null
+    private var btnSpeed: ChildButton? = null
+    private var subWalk: ChildButton? = null
+    private var subRun: ChildButton? = null
+    private var subCar: ChildButton? = null
+    private var subMapOpen: ChildButton? = null
+    private var subGpx: ChildButton? = null
+    private val columnButtons get() = listOfNotNull(btnMap, btnJoystick, btnLock, btnSpeed)
+    private val speedSubs get() = listOfNotNull(subWalk, subRun, subCar)
+    private val mapSubs get() = listOfNotNull(subMapOpen, subGpx)
+
+    // Live windowed children + their params, so we can move/remove them precisely.
+    private val childParams = HashMap<ChildButton, WindowManager.LayoutParams>()
+
+    // Fan-out state. vDir = +1 column grows DOWN, -1 UP; hDir = +1 sub-rows grow RIGHT, -1 LEFT.
+    private var expanded = false
+    private var speedOpen = false
+    private var mapOpen = false
     private var vDir = 1
     private var hDir = 1
 
@@ -92,12 +113,7 @@ class OverlayService : Service() {
         val view = RadialMenuView(this)
         hubView = view
 
-        winW = view.hubPx
-        winH = view.hubPx
-        hubInWinX = view.hubPx / 2f
-        hubInWinY = view.hubPx / 2f
-
-        // Feature 6: restore the hub to its last CENTRE position (else default top-left).
+        // Restore the hub to its last CENTRE position (else default top-left).
         val dm = resources.displayMetrics
         val savedHub = SessionStore.loadHubPos(this)
         val params = baseParams(view.hubPx, view.hubPx).apply {
@@ -111,43 +127,67 @@ class OverlayService : Service() {
         }
         hubParams = params
 
-        // Feature 3/6: restore the joystick lock state before any joystick is shown.
+        // Restore the joystick lock state before any joystick is shown.
         joystickLocked = SessionStore.loadLock(this)
+
+        // Build the child buttons once; they are added to / removed from their own windows on demand.
+        buildChildren()
 
         view.onHubDrag = { dx, dy -> moveHub(dx, dy) }
         view.onDragEnd = { saveHubPos() }
-        view.onRequestExpand = { expandHub() }
-        view.onRequestCollapse = { collapseHub() }
-        view.onToggleJoystick = { toggleJoystick() }
-        view.onToggleLock = { toggleLock() }
-        view.onOpenMap = { openMap() }
-        view.onToggleGpx = { toggleGpx() }
-        view.onTogglePause = {
-            MockLocationService.setMovementPaused(!MockLocationService.state.value.movementPaused)
-        }
-        view.onSetSpeed = { idx -> selectSpeed(idx) }
+        view.onRequestExpand = { expand() }
+        view.onRequestCollapse = { collapse() }
 
         windowManager.addView(view, params)
-        view.configure(hubInWinX, hubInWinY, vDir, hDir)
 
-        // Feature 1: apply the persisted speed on startup so the app opens at the last speed
-        // (shared SpeedModel → the map reflects it too). Don't clobber a live running session.
+        // Apply the persisted speed on startup so the app opens at the last speed (shared SpeedModel
+        // → the map reflects it too). Don't clobber a live running session.
         if (!MockLocationService.state.value.isRunning) {
             val chip = SessionStore.loadSpeedChip(this)
             if (chip in PRESET_KMH.indices) MockLocationService.setSpeed(PRESET_KMH[chip] / 3.6)
         }
 
-        // Reflect current state immediately + keep it live.
         applyState()
         startObserving()
 
-        // Feature 6: re-show the joystick if it was visible last time.
+        // Re-show the joystick if it was visible last time.
         if (SessionStore.loadJoystickVisible(this)) showJoystick()
     }
 
+    private fun buildChildren() {
+        btnMap = ChildButton(this, ChildButton.Glyph.MAP).also {
+            it.setOnClickListener { toggleMapRing() }
+        }
+        btnJoystick = ChildButton(this, ChildButton.Glyph.JOYSTICK).also {
+            it.setOnClickListener { toggleJoystick() }
+        }
+        btnLock = ChildButton(this, ChildButton.Glyph.LOCK_OPEN).also {
+            it.setOnClickListener { toggleLock() }
+        }
+        btnSpeed = ChildButton(this, ChildButton.Glyph.SPEED).also {
+            it.setOnClickListener { toggleSpeedRing() }
+        }
+        subWalk = ChildButton(this, ChildButton.Glyph.WALK).also {
+            it.setOnClickListener { selectSpeed(0) }
+        }
+        subRun = ChildButton(this, ChildButton.Glyph.RUN).also {
+            it.setOnClickListener { selectSpeed(1) }
+        }
+        subCar = ChildButton(this, ChildButton.Glyph.CAR).also {
+            it.setOnClickListener { selectSpeed(2) }
+        }
+        subMapOpen = ChildButton(this, ChildButton.Glyph.MAP_OPEN).also {
+            it.contentDescription = getString(R.string.overlay_open_map_page)
+            it.setOnClickListener { openMap() }
+        }
+        subGpx = ChildButton(this, ChildButton.Glyph.PLAY).also {
+            it.contentDescription = getString(R.string.overlay_gpx_toggle)
+            it.setOnClickListener { toggleGpx() }
+        }
+    }
+
     private fun saveHubPos() {
-        val params = hubParams ?: return
-        SessionStore.saveHubPos(this, (params.x + hubInWinX).toInt(), (params.y + hubInWinY).toInt())
+        SessionStore.saveHubPos(this, hubCx().toInt(), hubCy().toInt())
     }
 
     private fun openMap() {
@@ -159,13 +199,8 @@ class OverlayService : Service() {
     }
 
     /**
-     * 地圖 sub-row GPX toggle. Controls GPX PLAYBACK specifically (start / pause), distinct from the
-     * hub's ▶/⏸ which is the master movement freeze over everything.
-     *
-     * Interaction with the master freeze: starting/resuming GPX here also lifts the global freeze so
-     * the route actually moves (blue = really playing). The global ▶/⏸ remains the master gate — a
-     * user can still freeze a playing route with it; this toggle stays blue (playback is "active")
-     * while the master gate holds the position.
+     * 地圖 sub-row GPX toggle. Controls GPX PLAYBACK (start / pause). Starting/resuming here also
+     * lifts the global movement freeze so the route actually moves (blue = really playing).
      */
     private fun toggleGpx() {
         val pb = MockLocationService.state.value.playback
@@ -213,78 +248,126 @@ class OverlayService : Service() {
         applyState()
     }
 
+    // ---------------------------------------------------------------------------------------
+    // Per-button window geometry
+    // ---------------------------------------------------------------------------------------
+
+    private fun hubCx(): Float = (hubParams?.x ?: 0) + (hubView?.hubPx ?: 0) / 2f
+    private fun hubCy(): Float = (hubParams?.y ?: 0) + (hubView?.hubPx ?: 0) / 2f
+
+    // Column child i sits straight below/above the hub centre.
+    private fun columnCenterX(): Float = hubCx()
+    private fun columnCenterY(i: Int): Float {
+        val v = hubView ?: return hubCy()
+        return hubCy() + vDir * (v.firstOffsetPx + i * v.stepPx)
+    }
+
+    // Sub-row button j (0-based) at column row [rowIndex], fanning horizontally toward screen centre.
+    private fun rowCenterX(j: Int): Float {
+        val v = hubView ?: return hubCx()
+        return hubCx() + hDir * v.stepPx * (j + 1)
+    }
+
+    private fun addChildWin(btn: ChildButton, cx: Float, cy: Float) {
+        val v = hubView ?: return
+        val p = baseParams(v.childPx, v.childPx).apply {
+            x = (cx - v.childPx / 2f).toInt()
+            y = (cy - v.childPx / 2f).toInt()
+        }
+        btn.alpha = 0f
+        btn.scaleX = 0.3f
+        btn.scaleY = 0.3f
+        runCatching { windowManager.addView(btn, p) }
+        childParams[btn] = p
+        btn.animate().cancel()
+        btn.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(160).start()
+    }
+
+    private fun moveChildWin(btn: ChildButton, cx: Float, cy: Float) {
+        val v = hubView ?: return
+        val p = childParams[btn] ?: return
+        p.x = (cx - v.childPx / 2f).toInt()
+        p.y = (cy - v.childPx / 2f).toInt()
+        runCatching { windowManager.updateViewLayout(btn, p) }
+    }
+
+    private fun removeChildWin(btn: ChildButton) {
+        if (childParams.remove(btn) == null) return
+        btn.animate().cancel()
+        runCatching { windowManager.removeView(btn) }
+    }
+
+    private fun expand() {
+        val v = hubView ?: return
+        val dm = resources.displayMetrics
+        val cx = hubCx()
+        val cy = hubCy()
+        // Prefer column DOWN and sub-rows RIGHT (toward screen centre); flip only when that would
+        // run off the edge and the opposite direction has room.
+        vDir = if (cy + v.vReachPx > dm.heightPixels && cy - v.vReachPx >= 0) -1 else 1
+        hDir = if (cx + v.hReachPx > dm.widthPixels && cx - v.hReachPx >= 0) -1 else 1
+
+        expanded = true
+        speedOpen = false
+        mapOpen = false
+        columnButtons.forEachIndexed { i, b -> addChildWin(b, columnCenterX(), columnCenterY(i)) }
+        v.setExpandedVisual(true)
+        applyState()
+    }
+
+    private fun collapse() {
+        expanded = false
+        speedOpen = false
+        mapOpen = false
+        childParams.keys.toList().forEach { removeChildWin(it) }
+        hubView?.setExpandedVisual(false)
+        saveHubPos()
+    }
+
+    private fun toggleSpeedRing() {
+        if (!expanded) return
+        if (mapOpen) { mapOpen = false; mapSubs.forEach { removeChildWin(it) } }
+        speedOpen = !speedOpen
+        if (speedOpen) {
+            val v = hubView ?: return
+            speedSubs.forEachIndexed { j, b -> addChildWin(b, rowCenterX(j), columnCenterY(v.speedIndex)) }
+            applyState()
+        } else {
+            speedSubs.forEach { removeChildWin(it) }
+        }
+    }
+
+    private fun toggleMapRing() {
+        if (!expanded) return
+        if (speedOpen) { speedOpen = false; speedSubs.forEach { removeChildWin(it) } }
+        mapOpen = !mapOpen
+        if (mapOpen) {
+            mapSubs.forEachIndexed { j, b -> addChildWin(b, rowCenterX(j), columnCenterY(0)) }
+            applyState()
+        } else {
+            mapSubs.forEach { removeChildWin(it) }
+        }
+    }
+
+    private fun relayoutChildren() {
+        if (!expanded) return
+        val v = hubView ?: return
+        columnButtons.forEachIndexed { i, b -> moveChildWin(b, columnCenterX(), columnCenterY(i)) }
+        if (speedOpen) speedSubs.forEachIndexed { j, b ->
+            moveChildWin(b, rowCenterX(j), columnCenterY(v.speedIndex))
+        }
+        if (mapOpen) mapSubs.forEachIndexed { j, b -> moveChildWin(b, rowCenterX(j), columnCenterY(0)) }
+    }
+
     private fun moveHub(dx: Float, dy: Float) {
         val view = hubView ?: return
         val params = hubParams ?: return
         val dm = resources.displayMetrics
-        params.x += dx.toInt()
-        params.y += dy.toInt()
-        // Keep the hub CENTER on screen regardless of window size.
-        params.x = clampInt(params.x, (view.hubPx / 2 - hubInWinX).toInt(),
-            (dm.widthPixels - view.hubPx / 2 - hubInWinX).toInt())
-        params.y = clampInt(params.y, (view.hubPx / 2 - hubInWinY).toInt(),
-            (dm.heightPixels - view.hubPx / 2 - hubInWinY).toInt())
+        params.x = clampInt(params.x + dx.toInt(), 0, dm.widthPixels - view.hubPx)
+        params.y = clampInt(params.y + dy.toInt(), 0, dm.heightPixels - view.hubPx)
         runCatching { windowManager.updateViewLayout(view, params) }
+        relayoutChildren()
     }
-
-    private fun expandHub() {
-        val view = hubView ?: return
-        val params = hubParams ?: return
-        val dm = resources.displayMetrics
-        val exW = view.expandedW
-        val exH = view.expandedH
-
-        val cxScreen = params.x + hubInWinX
-        val cyScreen = params.y + hubInWinY
-
-        // Optimise for the common top-left placement: default the column DOWN and the speed row
-        // RIGHT (toward the screen centre). Only flip when that direction would run off the edge
-        // and the opposite direction actually has room — clamp stays the final safety net.
-        vDir = if (cyScreen + view.vReachPx > dm.heightPixels && cyScreen - view.vReachPx >= 0) -1 else 1
-        hDir = if (cxScreen + view.hReachPx > dm.widthPixels && cxScreen - view.hReachPx >= 0) -1 else 1
-
-        val hubOffX = view.hubOffsetX(hDir)
-        val hubOffY = view.hubOffsetY(vDir)
-        val nx = fitStart(cxScreen - hubOffX, exW, dm.widthPixels)
-        val ny = fitStart(cyScreen - hubOffY, exH, dm.heightPixels)
-
-        hubInWinX = cxScreen - nx
-        hubInWinY = cyScreen - ny
-
-        params.width = exW
-        params.height = exH
-        params.x = nx
-        params.y = ny
-        winW = exW
-        winH = exH
-        runCatching { windowManager.updateViewLayout(view, params) }
-        view.configure(hubInWinX, hubInWinY, vDir, hDir)
-        view.expand()
-    }
-
-    private fun collapseHub() {
-        val view = hubView ?: return
-        val params = hubParams ?: return
-        val dm = resources.displayMetrics
-        val cxScreen = params.x + hubInWinX
-        val cyScreen = params.y + hubInWinY
-
-        params.width = view.hubPx
-        params.height = view.hubPx
-        params.x = clampInt((cxScreen - view.hubPx / 2f).toInt(), 0, dm.widthPixels - view.hubPx)
-        params.y = clampInt((cyScreen - view.hubPx / 2f).toInt(), 0, dm.heightPixels - view.hubPx)
-        winW = view.hubPx
-        winH = view.hubPx
-        hubInWinX = view.hubPx / 2f
-        hubInWinY = view.hubPx / 2f
-        runCatching { windowManager.updateViewLayout(view, params) }
-        view.configure(hubInWinX, hubInWinY, vDir, hDir)
-        saveHubPos()
-    }
-
-    /** Top-left so a window of [size] fits within [extent]; centres it if it can't fit. */
-    private fun fitStart(desired: Float, size: Int, extent: Int): Int =
-        if (size <= extent) clampInt(desired.toInt(), 0, extent - size) else (extent - size) / 2
 
     private fun clampInt(v: Int, lo: Int, hi: Int): Int =
         if (lo > hi) lo else v.coerceIn(lo, hi)
@@ -301,20 +384,39 @@ class OverlayService : Service() {
     }
 
     private fun applyState() {
-        val view = hubView ?: return
         val s = MockLocationService.state.value
-        view.setJoystickVisible(joystickView != null)
-        view.setPaused(s.movementPaused)
-        view.setActiveSpeed(bucketOf(s.speedMps))
-        view.setLockActive(joystickLocked)
-        view.setGpxState(gpxVisual(s))
+        btnJoystick?.active = joystickView != null
+        setLockVisual(joystickLocked)
+        setSpeedVisual(bucketOf(s.speedMps))
+        subGpx?.applyGpx(gpxVisual(s))
+    }
+
+    private fun setLockVisual(locked: Boolean) {
+        val b = btnLock ?: return
+        b.active = locked
+        b.glyph = if (locked) ChildButton.Glyph.LOCK else ChildButton.Glyph.LOCK_OPEN
+        b.invalidate()
+    }
+
+    /** Highlight the active speed bucket (0 走 / 1 跑 / 2 車; -1 = custom). */
+    private fun setSpeedVisual(idx: Int) {
+        subWalk?.active = idx == 0
+        subRun?.active = idx == 1
+        subCar?.active = idx == 2
+        val b = btnSpeed ?: return
+        b.active = idx in 0..2
+        b.glyph = when (idx) {
+            0 -> ChildButton.Glyph.WALK
+            1 -> ChildButton.Glyph.RUN
+            2 -> ChildButton.Glyph.CAR
+            else -> ChildButton.Glyph.SPEED
+        }
+        b.invalidate()
     }
 
     /**
      * GPX toggle visual: DISABLED when no route is loaded AND no GPX is selected in the library;
-     * PLAYING (blue) while the playback cursor is advancing; PAUSED (amber) when a route is loaded
-     * but not currently playing. Colour tracks playback.active/paused only — the master ▶/⏸ freeze
-     * is reported separately and can still hold a "playing" route in place.
+     * PLAYING (blue) while the playback cursor is advancing; PAUSED (amber) otherwise.
      */
     private fun gpxVisual(s: MockState): ChildButton.GpxVisual {
         val loaded = s.playback.hasRoute || SessionStore.loadCurrentGpxId(this) != null
@@ -350,7 +452,7 @@ class OverlayService : Service() {
     }
 
     private fun showJoystick() {
-        // Feature 6: restore the joystick window to its last top-left (else default).
+        // Restore the joystick window to its last top-left (else default).
         val savedJoy = SessionStore.loadJoystickPos(this)
         val params = baseParams(
             (density * 96).toInt(),
@@ -429,6 +531,8 @@ class OverlayService : Service() {
         observeJob = null
         joystickView?.let { runCatching { windowManager.removeView(it) } }
         joystickView = null
+        childParams.keys.toList().forEach { runCatching { windowManager.removeView(it) } }
+        childParams.clear()
         hubView?.let { runCatching { windowManager.removeView(it) } }
         hubView = null
     }
@@ -498,7 +602,7 @@ class OverlayService : Service() {
         private const val CHANNEL_ID = "overlay_joystick"
         private const val NOTIFICATION_ID = 1002
 
-        /** Speed presets in km/h, in sub-ring order 走 / 跑 / 車 — matches MapActivity chips. */
+        /** Speed presets in km/h, in sub-row order 走 / 跑 / 車 — matches MapActivity chips. */
         private val PRESET_KMH = listOf(5.0, 15.0, 40.0)
 
         fun show(context: Context) {
