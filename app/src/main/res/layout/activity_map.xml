@@ -23,7 +23,7 @@
         android:layout_height="0dp"
         android:layout_weight="1" />
 
-    <!-- Bottom control surface -->
+    <!-- Bottom control surface: two titled sections (座標傳送 / 移動巡航) -->
     <com.google.android.material.card.MaterialCardView
         style="@style/Widget.GpsJoystick.Card"
         android:layout_width="match_parent"
@@ -37,124 +37,183 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <LinearLayout
+            <!-- ===== Section A: 座標傳送 ===== -->
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:text="@string/section_coord_teleport"
+                android:textAppearance="@style/TextAppearance.GpsJoystick.Title" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnImportGpx"
-                    style="@style/Widget.GpsJoystick.Button.Tonal"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/open_gpx_library" />
-
-                <TextView
-                    android:id="@+id/mapStatus"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="12dp"
-                    android:fontFeatureSettings="tnum"
-                    android:text="@string/map_tap_hint"
-                    android:textAppearance="@style/TextAppearance.GpsJoystick.Label" />
-            </LinearLayout>
-
-            <!-- Feature 3: paste/enter coordinates + favorites -->
-            <LinearLayout
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/coordInputLayout"
+                style="@style/Widget.GpsJoystick.TextInputLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
                 android:layout_marginTop="8dp">
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/coordInputLayout"
-                    style="@style/Widget.GpsJoystick.TextInputLayout"
-                    android:layout_width="0dp"
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/coordInput"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1">
+                    android:inputType="textNoSuggestions"
+                    android:imeOptions="actionGo"
+                    android:maxLines="1"
+                    android:hint="@string/hint_coord" />
+            </com.google.android.material.textfield.TextInputLayout>
 
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/coordInput"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textNoSuggestions"
-                        android:imeOptions="actionGo"
-                        android:maxLines="1"
-                        android:hint="@string/hint_coord" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnCoordGo"
-                    style="@style/Widget.GpsJoystick.Button.Tonal"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
-                    android:text="@string/coord_go" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="8dp">
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnFavSave"
-                    style="@style/Widget.GpsJoystick.Button.Outlined"
-                    android:layout_width="wrap_content"
+                    style="@style/Widget.GpsJoystick.Button.Tonal"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
-                    android:minWidth="48dp"
-                    android:insetLeft="0dp"
-                    android:insetRight="0dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="★" />
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:text="@string/fav_save_coord" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnFavList"
                     style="@style/Widget.GpsJoystick.Button.Outlined"
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:layout_marginStart="4dp"
-                    android:minWidth="48dp"
-                    android:insetLeft="0dp"
-                    android:insetRight="0dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="☰" />
+                    android:text="@string/fav_browse" />
             </LinearLayout>
 
-            <!-- Feature 1: speed presets -->
-            <com.google.android.material.chip.ChipGroup
-                android:id="@+id/speedChips"
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCoordGo"
+                style="@style/Widget.GpsJoystick.Button.Cta"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                app:singleLine="true"
+                android:text="@string/coord_send" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="12dp"
+                android:background="@color/outline" />
+
+            <!-- ===== Section B: 移動巡航 ===== -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/section_cruise"
+                android:textAppearance="@style/TextAppearance.GpsJoystick.Title" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnImportGpx"
+                style="@style/Widget.GpsJoystick.Button.Tonal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/gpx_load" />
+
+            <!-- Batch 1: 3-way playback mode selector (segmented, full width) -->
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/modeToggle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:singleSelection="true"
+                app:selectionRequired="true">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnModeOnce"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:minHeight="48dp"
+                    android:text="@string/mode_chip_once" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnModeLoop"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:minHeight="48dp"
+                    android:text="@string/mode_chip_loop" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnModeReverse"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:minHeight="48dp"
+                    android:text="@string/mode_chip_reverse" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+
+            <!-- Feature 1: speed presets 走/跑/車/自訂 (segmented, full width) -->
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/speedToggle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
                 app:singleSelection="true"
                 app:selectionRequired="false">
 
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/chipWalk"
-                    style="@style/Widget.Material3.Chip.Filter"
-                    android:layout_width="wrap_content"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSpeedWalk"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:minHeight="48dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:insetLeft="0dp"
+                    android:insetRight="0dp"
                     android:text="@string/speed_preset_walk" />
 
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/chipCycle"
-                    style="@style/Widget.Material3.Chip.Filter"
-                    android:layout_width="wrap_content"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSpeedCycle"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:minHeight="48dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:insetLeft="0dp"
+                    android:insetRight="0dp"
                     android:text="@string/speed_preset_cycle" />
 
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/chipDrive"
-                    style="@style/Widget.Material3.Chip.Filter"
-                    android:layout_width="wrap_content"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSpeedDrive"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:minHeight="48dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:insetLeft="0dp"
+                    android:insetRight="0dp"
                     android:text="@string/speed_preset_drive" />
-            </com.google.android.material.chip.ChipGroup>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSpeedCustom"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:minHeight="48dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:insetLeft="0dp"
+                    android:insetRight="0dp"
+                    android:text="@string/speed_preset_custom" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
 
             <TextView
                 android:id="@+id/speedValue"
@@ -163,41 +222,6 @@
                 android:layout_marginTop="4dp"
                 android:fontFeatureSettings="tnum"
                 android:textAppearance="@style/TextAppearance.GpsJoystick.Mono" />
-
-            <!-- Batch 1: 3-way playback mode selector -->
-            <com.google.android.material.chip.ChipGroup
-                android:id="@+id/modeChips"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                app:singleLine="true"
-                app:singleSelection="true"
-                app:selectionRequired="true">
-
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/chipModeOnce"
-                    style="@style/Widget.Material3.Chip.Filter"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:minHeight="48dp"
-                    android:text="@string/mode_chip_once" />
-
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/chipModeLoop"
-                    style="@style/Widget.Material3.Chip.Filter"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:minHeight="48dp"
-                    android:text="@string/mode_chip_loop" />
-
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/chipModeReverse"
-                    style="@style/Widget.Material3.Chip.Filter"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:minHeight="48dp"
-                    android:text="@string/mode_chip_reverse" />
-            </com.google.android.material.chip.ChipGroup>
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -245,30 +269,14 @@
                 android:progressTint="@color/status_active"
                 android:progressBackgroundTint="@color/outline" />
 
-            <LinearLayout
+            <TextView
+                android:id="@+id/mapStatus"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginTop="8dp">
-
-                <TextView
-                    android:id="@+id/speedLabel"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:paddingEnd="8dp"
-                    android:fontFeatureSettings="tnum"
-                    android:text="@string/playback_speed"
-                    android:textAppearance="@style/TextAppearance.GpsJoystick.Label" />
-
-                <SeekBar
-                    android:id="@+id/speedSeek"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:minHeight="48dp"
-                    android:max="29" />
-            </LinearLayout>
+                android:layout_marginTop="8dp"
+                android:fontFeatureSettings="tnum"
+                android:text="@string/map_tap_hint"
+                android:textAppearance="@style/TextAppearance.GpsJoystick.Label" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 </LinearLayout>

@@ -2,9 +2,9 @@ package com.dopiz.gpsjoystick
 
 import android.Manifest
 import android.os.Build
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.view.View
-import android.widget.SeekBar
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -46,8 +46,14 @@ class MainActivity : AppCompatActivity() {
             startActivity(PermissionChecker.overlaySettingsIntent(this))
         }
 
-        binding.btnStart.setOnClickListener { startMock() }
-        binding.btnStop.setOnClickListener { MockLocationService.stop(this) }
+        // One stateful button: 開始模擬 (orange, real GPS) ↔ 模擬中·回到真實定位 (green, mocking).
+        binding.btnMockToggle.setOnClickListener {
+            if (MockLocationService.state.value.isRunning) {
+                MockLocationService.stop(this)
+            } else {
+                startMock()
+            }
+        }
 
         binding.btnToggleOverlay.setOnClickListener { toggleOverlay() }
         binding.btnOpenMap.setOnClickListener {
@@ -56,22 +62,6 @@ class MainActivity : AppCompatActivity() {
         binding.btnOpenGpx.setOnClickListener {
             startActivity(android.content.Intent(this, GpxLibraryActivity::class.java))
         }
-
-        binding.btnNorth.setOnClickListener { MockLocationService.setDirection(Direction.N) }
-        binding.btnSouth.setOnClickListener { MockLocationService.setDirection(Direction.S) }
-        binding.btnEast.setOnClickListener { MockLocationService.setDirection(Direction.E) }
-        binding.btnWest.setOnClickListener { MockLocationService.setDirection(Direction.W) }
-        binding.btnHold.setOnClickListener { MockLocationService.setDirection(Direction.NONE) }
-
-        binding.speedSeek.progress =
-            (MockState.DEFAULT_SPEED_MPS - SpeedModel.MIN_MPS).toInt().coerceAtLeast(0)
-        binding.speedSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
-                MockLocationService.setSpeed(SpeedModel.MIN_MPS + progress)
-            }
-            override fun onStartTrackingTouch(sb: SeekBar?) {}
-            override fun onStopTrackingTouch(sb: SeekBar?) {}
-        })
 
         maybeRequestNotifications()
         observeService()
@@ -122,10 +112,14 @@ class MainActivity : AppCompatActivity() {
         } else {
             binding.errorText.visibility = View.GONE
         }
-        // One clear primary action per state: while mocking, only 回到真實定位 is active;
-        // while on real GPS, only 開始模擬 is active.
-        binding.btnStart.isEnabled = !s.isRunning
-        binding.btnStop.isEnabled = s.isRunning
+        // The single toggle reflects the live mock state: orange 開始模擬 on real GPS,
+        // green 模擬中·回到真實定位 while mocking, so the user can tell at a glance.
+        val activeColor = if (s.isRunning) R.color.status_active else R.color.brand_tertiary
+        binding.btnMockToggle.backgroundTintList =
+            ColorStateList.valueOf(getColor(activeColor))
+        binding.btnMockToggle.setText(
+            if (s.isRunning) R.string.mock_toggle_active else R.string.start_mock
+        )
         renderPermissions(s)
     }
 
@@ -143,8 +137,6 @@ class MainActivity : AppCompatActivity() {
             append("Position          : ${"%.5f".format(serviceState.latitude)}, " +
                 "%.5f".format(serviceState.longitude))
         }
-        binding.speedLabel.text =
-            "${getString(R.string.speed_label)}: ${"%.0f".format(serviceState.speedMps)} m/s"
     }
 
     /**

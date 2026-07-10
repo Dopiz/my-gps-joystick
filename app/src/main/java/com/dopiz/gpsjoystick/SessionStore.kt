@@ -77,6 +77,20 @@ object SessionStore {
     fun loadSpeedChip(context: Context): Int =
         context.getSharedPreferences(PREFS_UI, Context.MODE_PRIVATE).getInt(K_SPEED_CHIP, -1)
 
+    // Custom speed (km/h) typed via the 自訂 option, so it restores when chip index == 3.
+    private const val K_CUSTOM_KMH = "speed_custom_kmh"
+
+    fun saveCustomKmh(context: Context, kmh: Double) {
+        context.getSharedPreferences(PREFS_UI, Context.MODE_PRIVATE)
+            .edit().putLong(K_CUSTOM_KMH, kmh.toRawBits()).apply()
+    }
+
+    fun loadCustomKmh(context: Context): Double =
+        Double.fromBits(
+            context.getSharedPreferences(PREFS_UI, Context.MODE_PRIVATE)
+                .getLong(K_CUSTOM_KMH, 25.0.toRawBits())
+        )
+
     // --- Batch 1: last-selected playback mode (一次 / 巡迴 / 往返), independent of a live session ---
     private const val K_PB_MODE_UI = "pb_mode_ui"
 

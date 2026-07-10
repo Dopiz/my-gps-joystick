@@ -8,9 +8,9 @@ import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.text.InputType
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -115,22 +115,6 @@ class MapActivity : AppCompatActivity() {
         binding.btnPlay.setOnClickListener { startPlayback() }
         binding.btnStopPlayback.setOnClickListener { MockLocationService.stopPlayback() }
         setupModeChips()
-
-        binding.speedSeek.progress =
-            (MockLocationService.state.value.speedMps - SpeedModel.MIN_MPS).toInt().coerceAtLeast(0)
-        binding.speedSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    MockLocationService.setSpeed(SpeedModel.MIN_MPS + progress)
-                    // Manual fine-tune no longer matches a preset — clear the chip selection.
-                    binding.speedChips.clearCheck()
-                    SessionStore.saveSpeedChip(this@MapActivity, -1)
-                }
-            }
-            override fun onStartTrackingTouch(sb: SeekBar?) {}
-            override fun onStopTrackingTouch(sb: SeekBar?) {}
-        })
-
         setupSpeedChips()
         observeMockState()
 
@@ -138,26 +122,105 @@ class MapActivity : AppCompatActivity() {
         SessionStore.loadCurrentGpxId(this)?.let { loadGpxById(it) }
     }
 
-    /** Feature 1: speed preset chips. Order matches [presetKmh]; drives the shared SpeedModel. */
+    private val speedButtonIds
+        get() = listOf(
+            binding.btnSpeedWalk.id, binding.btnSpeedCycle.id,
+            binding.btnSpeedDrive.id, binding.btnSpeedCustom.id,
+        )
+    private var suppressSpeedCb = false
+
+    /**
+     * Feature 1: speed presets 走/跑/車 + 自訂 (user-typed km/h). Selecting a preset sets that
+     * km/h on the shared SpeedModel; 自訂 prompts for a value. The choice (and any custom km/h)
+     * is persisted so it restores on reopen. Index 3 == custom.
+     */
     private fun setupSpeedChips() {
-        val chipIds = listOf(binding.chipWalk.id, binding.chipCycle.id, binding.chipDrive.id)
-        binding.speedChips.setOnCheckedStateChangeListener { _, checkedIds ->
-            val idx = chipIds.indexOf(checkedIds.firstOrNull() ?: return@setOnCheckedStateChangeListener)
-            if (idx >= 0) {
-                MockLocationService.setSpeed(presetKmh[idx] / 3.6)
-                SessionStore.saveSpeedChip(this, idx)
-                syncSeekToSpeed()
+        val ids = speedButtonIds
+        binding.speedToggle.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked || suppressSpeedCb) return@addOnButtonCheckedListener
+            when (val idx = ids.indexOf(checkedId)) {
+                0, 1, 2 -> {
+                    MockLocationService.setSpeed(presetKmh[idx] / 3.6)
+                    SessionStore.saveSpeedChip(this, idx)
+                    setCustomButtonLabel(null)
+                }
+                3 -> promptCustomSpeed()
             }
         }
-        val saved = SessionStore.loadSpeedChip(this)
-        if (saved in presetKmh.indices) binding.speedChips.check(chipIds[saved])
+        // Restore the last selection + speed.
+        when (val saved = SessionStore.loadSpeedChip(this)) {
+            0, 1, 2 -> {
+                MockLocationService.setSpeed(presetKmh[saved] / 3.6)
+                checkSpeedSilently(ids[saved])
+            }
+            3 -> {
+                val kmh = SessionStore.loadCustomKmh(this)
+                MockLocationService.setSpeed(kmh / 3.6)
+                setCustomButtonLabel(kmh)
+                checkSpeedSilently(ids[3])
+            }
+        }
     }
 
-    /** Reflect the shared speed onto the fine-tune slider without re-triggering setSpeed. */
-    private fun syncSeekToSpeed() {
-        val mps = MockLocationService.state.value.speedMps
-        binding.speedSeek.progress =
-            (mps - SpeedModel.MIN_MPS).toInt().coerceIn(0, binding.speedSeek.max)
+    /** Check a segment without re-triggering the selection callback. */
+    private fun checkSpeedSilently(id: Int) {
+        suppressSpeedCb = true
+        binding.speedToggle.check(id)
+        suppressSpeedCb = false
+    }
+
+    private fun setCustomButtonLabel(kmh: Double?) {
+        binding.btnSpeedCustom.text =
+            if (kmh == null) getString(R.string.speed_preset_custom)
+            else getString(R.string.speed_preset_custom_value, "%.0f".format(kmh))
+    }
+
+    /** 自訂: prompt for a km/h value; apply on OK, revert the selection on cancel/blank. */
+    private fun promptCustomSpeed() {
+        val current = MockLocationService.state.value.speedMps * 3.6
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            hint = getString(R.string.speed_custom_hint)
+            setText("%.0f".format(current))
+            setSelection(text.length)
+        }
+        val container = FrameLayout(this).apply {
+            setPadding(pad, pad / 2, pad, 0)
+            addView(input)
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.speed_custom_title)
+            .setView(container)
+            .setPositiveButton(R.string.dialog_save) { _, _ ->
+                val kmh = input.text.toString().trim().toDoubleOrNull()
+                if (kmh == null || kmh <= 0.0) {
+                    revertSpeedSelection()
+                } else {
+                    MockLocationService.setSpeed(kmh / 3.6)
+                    // Persist the APPLIED value (SpeedModel may have clamped it).
+                    val appliedKmh = MockLocationService.state.value.speedMps * 3.6
+                    SessionStore.saveSpeedChip(this, 3)
+                    SessionStore.saveCustomKmh(this, appliedKmh)
+                    setCustomButtonLabel(appliedKmh)
+                }
+            }
+            .setNegativeButton(R.string.dialog_cancel) { _, _ -> revertSpeedSelection() }
+            .setOnCancelListener { revertSpeedSelection() }
+            .show()
+    }
+
+    /** Restore the toggle to the persisted preset after a 自訂 prompt is dismissed. */
+    private fun revertSpeedSelection() {
+        val ids = speedButtonIds
+        when (val saved = SessionStore.loadSpeedChip(this)) {
+            0, 1, 2, 3 -> checkSpeedSilently(ids[saved])
+            else -> {
+                suppressSpeedCb = true
+                binding.speedToggle.clearChecked()
+                suppressSpeedCb = false
+            }
+        }
     }
 
     /** Load a saved GPX (from the library) by id: draw its polyline and arm playback. */
@@ -414,13 +477,15 @@ class MapActivity : AppCompatActivity() {
 
     /** Batch 1: 3-way playback mode selector (一次 / 巡迴 / 往返). Persisted independently. */
     private fun setupModeChips() {
-        val chipIds = listOf(
-            binding.chipModeOnce.id, binding.chipModeLoop.id, binding.chipModeReverse.id,
+        val ids = listOf(
+            binding.btnModeOnce.id, binding.btnModeLoop.id, binding.btnModeReverse.id,
         )
         val modes = listOf(PlaybackMode.ONCE, PlaybackMode.LOOP, PlaybackMode.REVERSE)
-        binding.modeChips.check(chipIds[modes.indexOf(mode)])
-        binding.modeChips.setOnCheckedStateChangeListener { _, checkedIds ->
-            val idx = chipIds.indexOf(checkedIds.firstOrNull() ?: return@setOnCheckedStateChangeListener)
+        // check() before wiring the listener → no spurious callback for the initial selection.
+        binding.modeToggle.check(ids[modes.indexOf(mode)])
+        binding.modeToggle.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked) return@addOnButtonCheckedListener
+            val idx = ids.indexOf(checkedId)
             if (idx >= 0) {
                 mode = modes[idx]
                 MockLocationService.setPlaybackMode(mode)

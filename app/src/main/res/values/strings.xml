@@ -10,6 +10,7 @@
     <string name="stop">Stop</string>
     <string name="start_mock">開始模擬</string>
     <string name="return_real">回到真實定位</string>
+    <string name="mock_toggle_active">模擬中 · 點擊回到真實定位</string>
     <string name="speed_label">Speed</string>
     <string name="direction_label">Direction</string>
     <string name="dir_n">N</string>
@@ -50,7 +51,19 @@
     <string name="speed_preset_walk">走 5</string>
     <string name="speed_preset_cycle">跑 15</string>
     <string name="speed_preset_drive">車 40</string>
+    <string name="speed_preset_custom">自訂</string>
+    <string name="speed_preset_custom_value">自訂 %1$s</string>
+    <string name="speed_custom_title">自訂速度（km/h）</string>
+    <string name="speed_custom_hint">例如 25</string>
     <string name="speed_value">速度 %1$s km/h（%2$s m/s）</string>
+
+    <!-- Map bottom card section titles + action labels -->
+    <string name="section_coord_teleport">座標傳送</string>
+    <string name="section_cruise">移動巡航</string>
+    <string name="fav_save_coord">儲存座標</string>
+    <string name="fav_browse">瀏覽收藏</string>
+    <string name="coord_send">傳送</string>
+    <string name="gpx_load">載入 GPX</string>
 
     <!-- Feature 5: playback HUD -->
     <string name="hud_no_route">尚無路線，匯入 GPX 後顯示進度</string>
