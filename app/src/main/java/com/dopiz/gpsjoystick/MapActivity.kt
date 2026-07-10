@@ -2,7 +2,6 @@ package com.dopiz.gpsjoystick
 
 import android.graphics.Color
 import android.graphics.Point
-import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
@@ -53,9 +52,12 @@ class MapActivity : AppCompatActivity() {
     private var routePts: List<GeoPt> = emptyList()
     private var mode: PlaybackMode = PlaybackMode.LOOP
 
-    private val openGpxLauncher =
-        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            uri?.let { importGpx(it) }
+    private val gpxLibLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK) {
+                result.data?.getStringExtra(GpxLibraryActivity.EXTRA_GPX_ID)
+                    ?.let { loadGpxById(it) }
+            }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -100,9 +102,7 @@ class MapActivity : AppCompatActivity() {
         binding.map.overlays.add(0, MapEventsOverlay(tapReceiver))
 
         binding.btnImportGpx.setOnClickListener {
-            openGpxLauncher.launch(
-                arrayOf("application/gpx+xml", "application/xml", "text/xml", "*/*")
-            )
+            gpxLibLauncher.launch(android.content.Intent(this, GpxLibraryActivity::class.java))
         }
 
         binding.btnCoordGo.setOnClickListener { submitCoord() }
@@ -133,6 +133,9 @@ class MapActivity : AppCompatActivity() {
 
         setupSpeedChips()
         observeMockState()
+
+        // Batch 2: reload the last-chosen library GPX so reopening the map restores the route.
+        SessionStore.loadCurrentGpxId(this)?.let { loadGpxById(it) }
     }
 
     /** Feature 1: speed preset chips. Order matches [presetKmh]; drives the shared SpeedModel. */
@@ -157,21 +160,23 @@ class MapActivity : AppCompatActivity() {
             (mps - SpeedModel.MIN_MPS).toInt().coerceIn(0, binding.speedSeek.max)
     }
 
-    private fun importGpx(uri: Uri) {
-        val points = try {
-            contentResolver.openInputStream(uri)?.use { GpxParser.parse(it) }
-        } catch (e: Exception) {
-            Toast.makeText(this, "${getString(R.string.gpx_error)}: ${e.message}", Toast.LENGTH_LONG).show()
+    /** Load a saved GPX (from the library) by id: draw its polyline and arm playback. */
+    private fun loadGpxById(id: String) {
+        val pts = GpxStore.get(this, id)
+        if (pts.isEmpty()) {
+            SessionStore.clearCurrentGpxId(this)
             return
         }
-        if (points.isNullOrEmpty()) {
-            Toast.makeText(this, R.string.gpx_empty, Toast.LENGTH_LONG).show()
-            return
-        }
-        drawTrack(points)
-        routePts = points.map { GeoPt(it.latitude, it.longitude) }
-        MockLocationService.setPlaybackRoute(routePts, mode)
-        binding.mapStatus.text = getString(R.string.gpx_loaded, points.size)
+        SessionStore.saveCurrentGpxId(this, id)
+        loadRoute(pts)
+    }
+
+    /** Draw the route and hand it to the playback engine in the current mode. */
+    private fun loadRoute(pts: List<GeoPt>) {
+        drawTrack(pts.map { GeoPoint(it.lat, it.lng) })
+        routePts = pts
+        MockLocationService.setPlaybackRoute(pts, mode)
+        binding.mapStatus.text = getString(R.string.gpx_loaded, pts.size)
     }
 
     private fun drawTrack(points: List<GeoPoint>) {

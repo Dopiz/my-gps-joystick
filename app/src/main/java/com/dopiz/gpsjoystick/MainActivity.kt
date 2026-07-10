@@ -53,6 +53,9 @@ class MainActivity : AppCompatActivity() {
         binding.btnOpenMap.setOnClickListener {
             startActivity(android.content.Intent(this, MapActivity::class.java))
         }
+        binding.btnOpenGpx.setOnClickListener {
+            startActivity(android.content.Intent(this, GpxLibraryActivity::class.java))
+        }
 
         binding.btnNorth.setOnClickListener { MockLocationService.setDirection(Direction.N) }
         binding.btnSouth.setOnClickListener { MockLocationService.setDirection(Direction.S) }
