@@ -125,6 +125,9 @@ class MapActivity : AppCompatActivity() {
             setPoints(points)
             outlinePaint.color = Color.rgb(211, 47, 47)
             outlinePaint.strokeWidth = 8f
+            // Don't let the polyline swallow taps near the line — return false so the tap falls
+            // through to MapEventsOverlay, which is what drives tap-to-set-start-index / teleport.
+            setOnClickListener { _, _, _ -> false }
         }
         gpxPolyline = line
         binding.map.overlays.add(line)
@@ -177,10 +180,11 @@ class MapActivity : AppCompatActivity() {
             Toast.makeText(this, "請先在主畫面授予定位權限並設為模擬位置 app", Toast.LENGTH_LONG).show()
             return
         }
-        MockLocationService.setPlaybackRoute(routePts, mode)
+        // Route was already loaded at import; keep the current cursor (possibly a tapped
+        // start index) instead of resetting it. Just make sure the mode is current.
+        MockLocationService.setPlaybackMode(mode)
         val startIdx = MockLocationService.state.value.playback.segmentIndex
             .coerceIn(0, routePts.size - 1)
-        MockLocationService.setPlaybackStartIndex(startIdx)
         val start = routePts[startIdx]
         // Ensure the injecting service is running, positioned at the start point.
         MockLocationService.start(this, start.lat, start.lng)

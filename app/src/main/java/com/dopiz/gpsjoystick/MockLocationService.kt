@@ -50,8 +50,12 @@ class MockLocationService : Service() {
     override fun onCreate() {
         super.onCreate()
         // Fresh process (e.g. after a process kill): rehydrate the last session so the
-        // null-intent restart path below can resume the last position + playback.
-        if (!_state.value.isRunning) {
+        // null-intent restart path below can resume the last position + playback. Guard on the
+        // in-memory state still being untouched (no running session, no route loaded yet) so a
+        // normal first start driven by the UI — which has already populated the shared state —
+        // is never clobbered by a stale persisted session.
+        val s = _state.value
+        if (!s.isRunning && s.playback.points.isEmpty()) {
             SessionStore.load(this)?.let { restored -> _state.update { restored } }
         }
     }
