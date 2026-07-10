@@ -23,4 +23,22 @@
     <string name="gpx_empty">GPX 檔沒有任何座標點</string>
     <string name="gpx_error">GPX 解析失敗</string>
     <string name="gpx_loaded">已載入 %1$d 個座標點</string>
+    <string name="play">播放</string>
+    <string name="pause">暫停</string>
+    <string name="resume">續播</string>
+    <string name="stop_playback">停止</string>
+    <string name="mode_loop">模式：循環</string>
+    <string name="mode_reverse">模式：往返</string>
+    <string name="playback_speed">播放速度</string>
+    <string name="playback_no_route">請先匯入 GPX 路線</string>
+    <string name="playback_started">從第 %1$d 點開始播放</string>
+    <string name="start_index_set">起點設為第 %1$d 點（共 %2$d 點）</string>
+    <string name="map_route_hint">已載入路線：點路線上的點設為起點，點其他處瞬移</string>
+
+    <!-- Onboarding (Slice 11) -->
+    <string name="onboarding_title">首次設定（3 步）</string>
+    <string name="onboarding_step1">1. 授予定位權限</string>
+    <string name="onboarding_step2">2. 開發者選項 → 選擇模擬位置應用程式 → 選本 app</string>
+    <string name="onboarding_step3">3. 授予懸浮窗權限（搖桿用）</string>
+    <string name="onboarding_done">全部設定完成，可以開始使用了。</string>
 </resources>

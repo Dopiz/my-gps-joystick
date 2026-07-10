@@ -1,8 +1,10 @@
 package com.dopiz.gpsjoystick
 
 import android.graphics.Color
+import android.graphics.Point
 import android.net.Uri
 import android.os.Bundle
+import android.widget.SeekBar
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -20,11 +22,13 @@ import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.io.File
+import kotlin.math.hypot
 
 /**
  * In-app OSMDroid map. Subscribes to [MockLocationService.state] so the marker always equals
- * the current mock coordinates; a tap teleports the mock (and therefore any external app's
- * position) to the tapped point via [MockLocationService.update].
+ * the current mock coordinates. Hosts GPX playback controls (Slice 9/10): play/pause/resume/stop,
+ * loop/reverse mode, a live speed slider, and tap-to-set-start-index on a loaded route.
+ * A tap away from the route teleports the mock (Slice 7 behaviour).
  */
 class MapActivity : AppCompatActivity() {
 
@@ -33,6 +37,10 @@ class MapActivity : AppCompatActivity() {
     private var centeredOnce = false
     private var gpxPolyline: Polyline? = null
 
+    /** The imported route (osmdroid-free); empty until a GPX is loaded. */
+    private var routePts: List<GeoPt> = emptyList()
+    private var mode: PlaybackMode = PlaybackMode.LOOP
+
     private val openGpxLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             uri?.let { importGpx(it) }
@@ -40,8 +48,6 @@ class MapActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // osmdroid needs a user-agent + writable cache set BEFORE the MapView inflates,
-        // otherwise tile downloads are rejected. App-specific dirs avoid storage permissions.
         Configuration.getInstance().apply {
             userAgentValue = packageName
             osmdroidBasePath = File(cacheDir, "osmdroid")
@@ -65,7 +71,7 @@ class MapActivity : AppCompatActivity() {
 
         val tapReceiver = object : MapEventsReceiver {
             override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
-                teleport(p)
+                handleTap(p)
                 return true
             }
             override fun longPressHelper(p: GeoPoint): Boolean = false
@@ -73,11 +79,25 @@ class MapActivity : AppCompatActivity() {
         binding.map.overlays.add(0, MapEventsOverlay(tapReceiver))
 
         binding.btnImportGpx.setOnClickListener {
-            // Broad filter: many providers report .gpx as octet-stream or xml, not gpx+xml.
             openGpxLauncher.launch(
                 arrayOf("application/gpx+xml", "application/xml", "text/xml", "*/*")
             )
         }
+
+        binding.btnPlay.setOnClickListener { startPlayback() }
+        binding.btnPause.setOnClickListener { togglePause() }
+        binding.btnStopPlayback.setOnClickListener { MockLocationService.stopPlayback() }
+        binding.btnMode.setOnClickListener { cycleMode() }
+
+        binding.speedSeek.progress =
+            (MockLocationService.state.value.speedMps - SpeedModel.MIN_MPS).toInt().coerceAtLeast(0)
+        binding.speedSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) MockLocationService.setSpeed(SpeedModel.MIN_MPS + progress)
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
 
         observeMockState()
     }
@@ -94,6 +114,8 @@ class MapActivity : AppCompatActivity() {
             return
         }
         drawTrack(points)
+        routePts = points.map { GeoPt(it.latitude, it.longitude) }
+        MockLocationService.setPlaybackRoute(routePts, mode)
         binding.mapStatus.text = getString(R.string.gpx_loaded, points.size)
     }
 
@@ -106,16 +128,78 @@ class MapActivity : AppCompatActivity() {
         }
         gpxPolyline = line
         binding.map.overlays.add(line)
-        // Fit the whole track; post so the map has a measured size for the zoom math.
         binding.map.post {
             binding.map.zoomToBoundingBox(BoundingBox.fromGeoPoints(points), true, 64)
         }
         binding.map.invalidate()
     }
 
-    private fun teleport(p: GeoPoint) {
+    /**
+     * A tap on/near a loaded route sets the playback start index; a tap elsewhere teleports.
+     * "Near" is judged in screen pixels so it feels the same at any zoom.
+     */
+    private fun handleTap(p: GeoPoint) {
+        val idx = nearestRouteIndex(p)
+        if (idx != null) {
+            MockLocationService.setPlaybackStartIndex(idx)
+            binding.mapStatus.text =
+                getString(R.string.start_index_set, idx + 1, routePts.size)
+            return
+        }
         MockLocationService.update(this, p.latitude, p.longitude)
         binding.mapStatus.text = "瞬移到 %.5f, %.5f".format(p.latitude, p.longitude)
+    }
+
+    /** @return index of the closest route point within the tap threshold, or null if none. */
+    private fun nearestRouteIndex(p: GeoPoint): Int? {
+        if (routePts.isEmpty()) return null
+        val proj = binding.map.projection
+        val tapPx = proj.toPixels(p, null)
+        var bestIdx = -1
+        var bestDist = Float.MAX_VALUE
+        routePts.forEachIndexed { i, pt ->
+            val px: Point = proj.toPixels(GeoPoint(pt.lat, pt.lng), null)
+            val d = hypot((px.x - tapPx.x).toFloat(), (px.y - tapPx.y).toFloat())
+            if (d < bestDist) {
+                bestDist = d
+                bestIdx = i
+            }
+        }
+        return if (bestDist <= TAP_THRESHOLD_PX) bestIdx else null
+    }
+
+    private fun startPlayback() {
+        if (routePts.size < 2) {
+            Toast.makeText(this, R.string.playback_no_route, Toast.LENGTH_LONG).show()
+            return
+        }
+        if (!PermissionChecker.isLocationGranted(this)) {
+            Toast.makeText(this, "請先在主畫面授予定位權限並設為模擬位置 app", Toast.LENGTH_LONG).show()
+            return
+        }
+        MockLocationService.setPlaybackRoute(routePts, mode)
+        val startIdx = MockLocationService.state.value.playback.segmentIndex
+            .coerceIn(0, routePts.size - 1)
+        MockLocationService.setPlaybackStartIndex(startIdx)
+        val start = routePts[startIdx]
+        // Ensure the injecting service is running, positioned at the start point.
+        MockLocationService.start(this, start.lat, start.lng)
+        MockLocationService.play()
+        binding.mapStatus.text = getString(R.string.playback_started, startIdx + 1)
+    }
+
+    private fun togglePause() {
+        val pb = MockLocationService.state.value.playback
+        if (pb.paused || !pb.active) MockLocationService.resumePlayback()
+        else MockLocationService.pausePlayback()
+    }
+
+    private fun cycleMode() {
+        mode = if (mode == PlaybackMode.LOOP) PlaybackMode.REVERSE else PlaybackMode.LOOP
+        MockLocationService.setPlaybackMode(mode)
+        binding.btnMode.setText(
+            if (mode == PlaybackMode.LOOP) R.string.mode_loop else R.string.mode_reverse
+        )
     }
 
     private fun observeMockState() {
@@ -128,6 +212,10 @@ class MapActivity : AppCompatActivity() {
                         binding.map.controller.setCenter(gp)
                         centeredOnce = true
                     }
+                    binding.btnPause.setText(
+                        if (s.playback.active && !s.playback.paused) R.string.pause
+                        else R.string.resume
+                    )
                     binding.map.invalidate()
                 }
             }
@@ -142,5 +230,9 @@ class MapActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         binding.map.onPause()
+    }
+
+    private companion object {
+        const val TAP_THRESHOLD_PX = 60f
     }
 }
