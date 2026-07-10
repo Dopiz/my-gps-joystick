@@ -26,8 +26,8 @@
             <gradient
                 android:type="radial"
                 android:centerX="54"
-                android:centerY="46"
-                android:gradientRadius="60">
+                android:centerY="52"
+                android:gradientRadius="52">
                 <item android:offset="0.0" android:color="#4DFFFFFF" />
                 <item android:offset="0.4" android:color="#1FFFFFFF" />
                 <item android:offset="1.0" android:color="#00FFFFFF" />
