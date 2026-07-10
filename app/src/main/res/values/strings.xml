@@ -4,4 +4,8 @@
     <string name="grant_location">Location</string>
     <string name="set_mock_app">Mock app</string>
     <string name="grant_overlay">Overlay</string>
+    <string name="hint_lat">Latitude (e.g. 25.0339)</string>
+    <string name="hint_lng">Longitude (e.g. 121.5645)</string>
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
 </resources>

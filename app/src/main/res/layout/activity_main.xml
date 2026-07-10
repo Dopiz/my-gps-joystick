@@ -22,13 +22,23 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
-            android:textSize="14sp"
-            android:paddingBottom="12dp" />
+            android:textSize="13sp"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:id="@+id/errorText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#C62828"
+            android:textSize="13sp"
+            android:paddingBottom="8dp"
+            android:visibility="gone" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingBottom="8dp">
 
             <Button
                 android:id="@+id/btnGrantLocation"
@@ -50,6 +60,44 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/grant_overlay" />
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/inputLat"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/hint_lat"
+            android:inputType="numberDecimal|numberSigned"
+            android:importantForAutofill="no" />
+
+        <EditText
+            android:id="@+id/inputLng"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/hint_lng"
+            android:inputType="numberDecimal|numberSigned"
+            android:importantForAutofill="no" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
+
+            <Button
+                android:id="@+id/btnStart"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/start" />
+
+            <Button
+                android:id="@+id/btnStop"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/stop" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>
