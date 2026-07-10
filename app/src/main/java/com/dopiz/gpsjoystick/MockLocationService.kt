@@ -99,10 +99,16 @@ class MockLocationService : Service() {
     /** Direction move engine step: shift the held position along the current heading. */
     private fun advancePosition(dtSeconds: Double) {
         val s = _state.value
-        if (s.direction == Direction.NONE) return
-        val (lat, lng) = DirectionEngine.step(
-            s.latitude, s.longitude, s.direction, s.speedMps, dtSeconds
-        )
+        val (lat, lng) = if (s.headingActive) {
+            DirectionEngine.stepVector(
+                s.latitude, s.longitude, s.headingNorth, s.headingEast, s.speedMps, dtSeconds
+            )
+        } else {
+            if (s.direction == Direction.NONE) return
+            DirectionEngine.step(
+                s.latitude, s.longitude, s.direction, s.speedMps, dtSeconds
+            )
+        }
         _state.update { it.copy(latitude = lat, longitude = lng) }
     }
 
@@ -154,8 +160,13 @@ class MockLocationService : Service() {
             longitude = s.longitude
             accuracy = 1f
             altitude = 0.0
-            bearing = s.direction.bearingDegrees
-            speed = if (s.direction == Direction.NONE) 0f else s.speedMps.toFloat()
+            val moving = s.headingActive || s.direction != Direction.NONE
+            bearing = if (s.headingActive) {
+                DirectionEngine.bearingOf(s.headingNorth, s.headingEast)
+            } else {
+                s.direction.bearingDegrees
+            }
+            speed = if (moving) s.speedMps.toFloat() else 0f
             time = System.currentTimeMillis()
             elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
             // Fields Google Maps requires on API 26+ before it will accept the fix.
@@ -299,7 +310,38 @@ class MockLocationService : Service() {
         }
 
         fun setDirection(direction: Direction) {
-            _state.update { it.copy(direction = direction) }
+            // Explicit cardinal input overrides any live joystick heading.
+            _state.update {
+                it.copy(direction = direction, headingActive = false)
+            }
+        }
+
+        /**
+         * Joystick input: [north]/[east] is a unit heading vector (screen up = north),
+         * [magnitude] is the stick deflection 0..1 which maps directly to speed. Zero
+         * magnitude releases the stick (recenter → stop). Shared [SpeedModel] governs speed.
+         */
+        fun setJoystick(north: Double, east: Double, magnitude: Double) {
+            if (magnitude <= 0.0) {
+                clearJoystick()
+                return
+            }
+            val speed = SpeedModel.clamp(magnitude * SpeedModel.MAX_MPS)
+            _state.update {
+                it.copy(
+                    headingActive = true,
+                    headingNorth = north,
+                    headingEast = east,
+                    speedMps = speed,
+                    direction = Direction.NONE,
+                )
+            }
+        }
+
+        fun clearJoystick() {
+            _state.update {
+                it.copy(headingActive = false, headingNorth = 0.0, headingEast = 0.0)
+            }
         }
     }
 }

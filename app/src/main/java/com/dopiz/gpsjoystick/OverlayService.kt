@@ -8,14 +8,11 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
-import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
@@ -64,18 +61,24 @@ class OverlayService : Service() {
 
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-        val box = View(this).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.argb(180, 33, 150, 243))
-                setStroke(6, Color.WHITE)
+        val params = baseLayoutParams()
+        val joystick = JoystickView(this).apply {
+            listener = object : JoystickView.Listener {
+                override fun onMove(north: Double, east: Double, magnitude: Double) {
+                    MockLocationService.setJoystick(north, east, magnitude)
+                }
+                override fun onRelease() {
+                    MockLocationService.clearJoystick()
+                }
+            }
+            onDragWindow = { dx, dy ->
+                params.x += dx.toInt()
+                params.y += dy.toInt()
+                runCatching { windowManager.updateViewLayout(this, params) }
             }
         }
-        overlayView = box
-
-        val params = baseLayoutParams()
-        makeDraggable(box, params)
-        windowManager.addView(box, params)
+        overlayView = joystick
+        windowManager.addView(joystick, params)
     }
 
     private fun baseLayoutParams(): WindowManager.LayoutParams {
@@ -96,35 +99,6 @@ class OverlayService : Service() {
             gravity = Gravity.TOP or Gravity.START
             x = 48
             y = 320
-        }
-    }
-
-    private fun makeDraggable(view: View, params: WindowManager.LayoutParams) {
-        var startX = 0
-        var startY = 0
-        var touchX = 0f
-        var touchY = 0f
-        view.setOnTouchListener { v, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    startX = params.x
-                    startY = params.y
-                    touchX = event.rawX
-                    touchY = event.rawY
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    params.x = startX + (event.rawX - touchX).toInt()
-                    params.y = startY + (event.rawY - touchY).toInt()
-                    windowManager.updateViewLayout(view, params)
-                    true
-                }
-                MotionEvent.ACTION_UP -> {
-                    v.performClick()
-                    true
-                }
-                else -> false
-            }
         }
     }
 

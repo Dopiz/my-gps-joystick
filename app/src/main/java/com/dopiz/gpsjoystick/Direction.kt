@@ -1,6 +1,7 @@
 package com.dopiz.gpsjoystick
 
 import kotlin.math.cos
+import kotlin.math.hypot
 
 /**
  * Cardinal move direction for the joystick test harness. [NONE] means "hold position".
@@ -38,5 +39,35 @@ object DirectionEngine {
         val dLng = if (metersPerDegreeLng == 0.0) 0.0
             else direction.eastSign * distance / metersPerDegreeLng
         return (lat + dLat) to (lng + dLng)
+    }
+
+    /**
+     * Free-heading variant used by the joystick: [north]/[east] form a (unit) heading vector
+     * where +north points to higher latitude and +east to higher longitude. Shares the same
+     * [SpeedModel] distance model as [step]; only the heading representation differs.
+     */
+    fun stepVector(
+        lat: Double,
+        lng: Double,
+        north: Double,
+        east: Double,
+        speedMps: Double,
+        seconds: Double,
+    ): Pair<Double, Double> {
+        val magnitude = hypot(north, east)
+        if (magnitude == 0.0 || speedMps <= 0.0 || seconds <= 0.0) return lat to lng
+        val distance = SpeedModel.distanceMeters(speedMps, seconds)
+        val dLat = north * distance / METERS_PER_DEGREE_LAT
+        val metersPerDegreeLng = METERS_PER_DEGREE_LAT * cos(Math.toRadians(lat))
+        val dLng = if (metersPerDegreeLng == 0.0) 0.0
+            else east * distance / metersPerDegreeLng
+        return (lat + dLat) to (lng + dLng)
+    }
+
+    /** Compass bearing (0=N, 90=E) for a heading vector; 0 when the vector is zero. */
+    fun bearingOf(north: Double, east: Double): Float {
+        if (north == 0.0 && east == 0.0) return 0f
+        val deg = Math.toDegrees(kotlin.math.atan2(east, north))
+        return ((deg + 360.0) % 360.0).toFloat()
     }
 }

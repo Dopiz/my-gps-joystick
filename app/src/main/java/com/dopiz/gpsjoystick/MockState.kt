@@ -10,6 +10,13 @@ data class MockState(
     val longitude: Double = DEFAULT_LNG,
     val speedMps: Double = DEFAULT_SPEED_MPS,
     val direction: Direction = Direction.NONE,
+    /**
+     * Free-heading joystick vector. When [headingActive] the move engine follows
+     * [headingNorth]/[headingEast] instead of the cardinal [direction] enum.
+     */
+    val headingActive: Boolean = false,
+    val headingNorth: Double = 0.0,
+    val headingEast: Double = 0.0,
     /** Non-null when the last command failed (e.g. app not selected as mock app). */
     val error: String? = null,
 ) {

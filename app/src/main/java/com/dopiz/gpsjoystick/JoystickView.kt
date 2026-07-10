@@ -1,0 +1,141 @@
+package com.dopiz.gpsjoystick
+
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.view.MotionEvent
+import android.view.View
+import kotlin.math.hypot
+import kotlin.math.min
+
+/**
+ * A virtual joystick drawn inside the floating overlay. The knob's deflection reports a unit
+ * heading vector (screen-up = north) plus a magnitude 0..1 to [Listener]; the [OverlayService]
+ * forwards that to [MockLocationService.setJoystick], so joystick angle → move direction and
+ * deflection → speed (via the shared [SpeedModel]). Releasing recenters and stops.
+ *
+ * A touch that starts outside the base circle (the square view's corners) is treated as a
+ * window-drag gesture and forwarded to [onDragWindow] so the whole overlay stays repositionable.
+ */
+class JoystickView(context: Context) : View(context) {
+
+    interface Listener {
+        fun onMove(north: Double, east: Double, magnitude: Double)
+        fun onRelease()
+    }
+
+    var listener: Listener? = null
+
+    /** Called with the incremental raw-screen delta while dragging the window body. */
+    var onDragWindow: ((dxRaw: Float, dyRaw: Float) -> Unit)? = null
+
+    private val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(120, 33, 150, 243)
+    }
+    private val baseStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 6f
+        color = Color.WHITE
+    }
+    private val knobPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(230, 25, 118, 210)
+    }
+
+    private var cx = 0f
+    private var cy = 0f
+    private var baseRadius = 0f
+    private var knobRadius = 0f
+    private var knobX = 0f
+    private var knobY = 0f
+
+    private var draggingKnob = false
+    private var movingWindow = false
+    private var lastRawX = 0f
+    private var lastRawY = 0f
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        cx = w / 2f
+        cy = h / 2f
+        baseRadius = min(w, h) / 2f * 0.85f
+        knobRadius = baseRadius * 0.42f
+        knobX = cx
+        knobY = cy
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        canvas.drawCircle(cx, cy, baseRadius, basePaint)
+        canvas.drawCircle(cx, cy, baseRadius, baseStroke)
+        canvas.drawCircle(knobX, knobY, knobRadius, knobPaint)
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                val d = hypot(event.x - cx, event.y - cy)
+                if (d <= baseRadius) {
+                    draggingKnob = true
+                    updateKnob(event.x, event.y)
+                } else {
+                    movingWindow = true
+                    lastRawX = event.rawX
+                    lastRawY = event.rawY
+                }
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (draggingKnob) {
+                    updateKnob(event.x, event.y)
+                } else if (movingWindow) {
+                    onDragWindow?.invoke(event.rawX - lastRawX, event.rawY - lastRawY)
+                    lastRawX = event.rawX
+                    lastRawY = event.rawY
+                }
+                return true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (draggingKnob) {
+                    draggingKnob = false
+                    recenter()
+                    listener?.onRelease()
+                }
+                movingWindow = false
+                performClick()
+                return true
+            }
+        }
+        return super.onTouchEvent(event)
+    }
+
+    override fun performClick(): Boolean {
+        super.performClick()
+        return true
+    }
+
+    private fun updateKnob(x: Float, y: Float) {
+        val dx = x - cx
+        val dy = y - cy
+        val dist = hypot(dx, dy)
+        val clamped = min(dist, baseRadius)
+        if (dist > 0f) {
+            knobX = cx + dx / dist * clamped
+            knobY = cy + dy / dist * clamped
+        } else {
+            knobX = cx
+            knobY = cy
+        }
+        invalidate()
+
+        val magnitude = (clamped / baseRadius).toDouble()
+        val east = if (dist > 0f) (dx / dist).toDouble() else 0.0
+        // Screen y grows downward; north is up, so negate.
+        val north = if (dist > 0f) (-dy / dist).toDouble() else 0.0
+        listener?.onMove(north, east, magnitude)
+    }
+
+    private fun recenter() {
+        knobX = cx
+        knobY = cy
+        invalidate()
+    }
+}
