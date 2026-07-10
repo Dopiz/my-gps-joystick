@@ -27,12 +27,13 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
 
     /** Collapsed hub window is a square of this side. */
     val hubPx: Int = dp(60f).toInt()
-    private val childPx: Int = dp(52f).toInt()
-    private val fanRadiusPx: Float = dp(88f)
-    private val subRadiusPx: Float = dp(150f)
+    private val childPx: Int = dp(56f).toInt()
+    // Fan radius clears the hub: 96 - hubR(30) - childR(28) = 38dp gap between hub & child edges.
+    private val fanRadiusPx: Float = dp(96f)
+    private val subRadiusPx: Float = dp(156f)
 
-    /** Expanded window square side — big enough for the furthest sub-ring button plus margin. */
-    val expandedPx: Int = ((subRadiusPx + childPx / 2f + dp(10f)) * 2f).toInt()
+    /** Expanded window square side — big enough for the furthest sub-ring button, ring & shadow. */
+    val expandedPx: Int = ((subRadiusPx + childPx / 2f + dp(16f)) * 2f).toInt()
 
     // --- Callbacks wired by the service ---
     var onHubDrag: (dx: Float, dy: Float) -> Unit = { _, _ -> }

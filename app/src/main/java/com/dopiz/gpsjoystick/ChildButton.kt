@@ -13,8 +13,9 @@ import kotlin.math.min
  *
  * Glyphs are drawn in code (no emoji, no bitmap assets) so the whole menu shares one visual
  * language, tinted with the Material 3 dark tokens from colors.xml. The [HUB] is filled with the
- * brand primary; children sit on a translucent [surface] disc with an [outline] ring that turns
- * [statusActive] green when [active].
+ * brand primary; children are SOLID OPAQUE [surfaceVariant] discs with a thin [outline] ring and a
+ * drop shadow so they stay legible over any background. When [active] the whole disc fills
+ * [statusActive] green (e.g. the current speed bucket).
  */
 class ChildButton(
     context: Context,
@@ -31,12 +32,14 @@ class ChildButton(
             invalidate()
         }
 
-    private val surface = 0xF2131A22.toInt()      // surface #131A22, high alpha for legibility
+    private val surfaceVariant = 0xFF1B242E.toInt() // surface_variant #1B242E, fully opaque
     private val outline = 0xFF2A3542.toInt()       // outline #2A3542
+    private val outlineActive = 0xFF16A34A.toInt()  // darker green rim for the active disc
     private val primary = 0xFF3B82F6.toInt()       // primary #3B82F6
     private val statusActive = 0xFF22C55E.toInt()  // status_active #22C55E
     private val onSurface = 0xFFE5EDF5.toInt()     // on_surface #E5EDF5
     private val white = 0xFFFFFFFF.toInt()
+    private val shadowColor = 0xB3000000.toInt()   // ~70% black drop shadow
 
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
@@ -57,6 +60,8 @@ class ChildButton(
 
     init {
         isClickable = true
+        // Software layer so the disc drop shadow renders reliably across API levels.
+        setLayerType(LAYER_TYPE_SOFTWARE, null)
     }
 
     /** Press feedback: a quick scale dip so taps feel responsive. */
@@ -73,21 +78,32 @@ class ChildButton(
         val h = height.toFloat()
         val cx = w / 2f
         val cy = h / 2f
-        val stroke = if (active) 2.4f * density else 1.6f * density
-        val r = min(w, h) / 2f - stroke
+        val stroke = 1.6f * density
+        val shadowR = 5f * density
+        // Leave room inside the view bounds for both the ring and the drop shadow.
+        val r = min(w, h) / 2f - stroke - shadowR
 
         val isHub = glyph == Glyph.HUB
-        fillPaint.color = if (isHub) primary else surface
-        canvas.drawCircle(cx, cy, r, fillPaint)
-        ringPaint.color = when {
+        // Solid opaque disc: primary for the hub, green when active, surface-variant otherwise.
+        fillPaint.color = when {
+            isHub -> primary
             active -> statusActive
+            else -> surfaceVariant
+        }
+        fillPaint.setShadowLayer(shadowR, 0f, 2f * density, shadowColor)
+        canvas.drawCircle(cx, cy, r, fillPaint)
+        fillPaint.clearShadowLayer()
+
+        ringPaint.color = when {
             isHub -> 0x66FFFFFF
+            active -> outlineActive
             else -> outline
         }
         ringPaint.strokeWidth = stroke
         canvas.drawCircle(cx, cy, r, ringPaint)
 
-        val gcol = if (isHub) white else if (active) statusActive else onSurface
+        // Glyph/text: white on the coloured (hub / active) discs, on-surface on plain discs.
+        val gcol = if (isHub || active) white else onSurface
         glyphStroke.color = gcol
         glyphFill.color = gcol
         textPaint.color = gcol
