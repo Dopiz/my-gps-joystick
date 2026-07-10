@@ -227,6 +227,7 @@ class MapActivity : AppCompatActivity() {
         }
         teleportTo(coord.first, coord.second,
             getString(R.string.coord_teleport, fmt(coord.first), fmt(coord.second)))
+        binding.coordInput.text?.clear()
     }
 
     /** Accepts "lat,lng" and "lat, lng"; validates lat -90..90, lng -180..180. */
