@@ -42,6 +42,9 @@
     <string name="start_index_set">起點設為第 %1$d 點（共 %2$d 點）</string>
     <string name="map_route_hint">已載入路線：點路線上的點設為起點，點其他處帶入座標</string>
     <string name="back">返回</string>
+    <string name="overlay_open_map_page">開啟地圖頁</string>
+    <string name="overlay_gpx_toggle">GPX 開始／暫停</string>
+    <string name="gpx_toggle_need_perm">請先在主畫面授予定位權限並設為模擬位置 app</string>
 
     <!-- Feature 1: speed presets + dual-unit speed readout -->
     <string name="speed_preset_walk">走 5</string>

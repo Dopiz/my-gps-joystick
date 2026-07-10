@@ -66,11 +66,13 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     var onTogglePause: () -> Unit = {}
     var onSetSpeed: (idx: Int) -> Unit = {}
     var onOpenMap: () -> Unit = {}
+    var onToggleGpx: () -> Unit = {}
     var onToggleLock: () -> Unit = {}
 
     var expanded: Boolean = false
         private set
     private var speedOpen = false
+    private var mapOpen = false
 
     private val hub = ChildButton(context, ChildButton.Glyph.HUB)
     private val btnMap = ChildButton(context, ChildButton.Glyph.MAP)
@@ -86,6 +88,12 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     private val subRun = ChildButton(context, ChildButton.Glyph.RUN)
     private val subCar = ChildButton(context, ChildButton.Glyph.CAR)
     private val subs = listOf(subWalk, subRun, subCar)
+
+    // 地圖 sub-row (fans off the 地圖 child, toward screen centre like the speed row): 開啟地圖頁 +
+    // GPX 開始/暫停 toggle.
+    private val subMapOpen = ChildButton(context, ChildButton.Glyph.MAP_OPEN)
+    private val subGpx = ChildButton(context, ChildButton.Glyph.PLAY)
+    private val mapSubs = listOf(subMapOpen, subGpx)
 
     private var hubCX = hubPx / 2f
     private var hubCY = hubPx / 2f
@@ -137,13 +145,14 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     }
 
     init {
-        // Add order = z-order: sub-ring below mains, hub on top so children emerge from behind it.
+        // Add order = z-order: sub-rings below mains, hub on top so children emerge from behind it.
         subs.forEach { addChild(it, childPx) }
+        mapSubs.forEach { addChild(it, childPx) }
         mains.forEach { addChild(it, childPx) }
         addChild(hub, hubPx)
-        (subs + mains).forEach { it.visibility = View.GONE }
+        (subs + mapSubs + mains).forEach { it.visibility = View.GONE }
 
-        btnMap.setOnClickListener { onOpenMap() }
+        btnMap.setOnClickListener { toggleMapRing() }
         btnJoystick.setOnClickListener { onToggleJoystick() }
         btnLock.setOnClickListener { onToggleLock() }
         btnPause.setOnClickListener { onTogglePause() }
@@ -151,6 +160,10 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
         subWalk.setOnClickListener { onSetSpeed(0) }
         subRun.setOnClickListener { onSetSpeed(1) }
         subCar.setOnClickListener { onSetSpeed(2) }
+        subMapOpen.setOnClickListener { onOpenMap() }
+        subGpx.setOnClickListener { onToggleGpx() }
+        subMapOpen.contentDescription = context.getString(R.string.overlay_open_map_page)
+        subGpx.contentDescription = context.getString(R.string.overlay_gpx_toggle)
 
         hub.setOnTouchListener(hubTouch)
     }
@@ -180,6 +193,11 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
             else -> ChildButton.Glyph.SPEED
         }
         btnSpeed.invalidate()
+    }
+
+    /** Reflect the GPX playback toggle state (disabled / playing-blue / paused-amber). */
+    fun setGpxState(state: ChildButton.GpxVisual) {
+        subGpx.applyGpx(state)
     }
 
     /** Reflect the joystick hands-free lock state: locked = green disc + closed padlock. */
@@ -221,6 +239,7 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     fun expand() {
         expanded = true
         speedOpen = false
+        mapOpen = false
         hub.hubExpanded = true            // swap app icon -> "+" so the 45° spin reads as ✕
         hub.animate().rotation(45f).setDuration(DUR).start()
         layoutFan(animate = true)
@@ -230,22 +249,24 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
         mains.forEachIndexed { i, b ->
             showChild(b, mainX(i), mainY(i), delay = i * STAGGER, animate = animate)
         }
-        subs.forEach { it.visibility = View.GONE }
+        (subs + mapSubs).forEach { it.visibility = View.GONE }
     }
 
     fun collapse() {
         if (!expanded) return
         expanded = false
         speedOpen = false
+        mapOpen = false
         hub.animate().rotation(0f).setDuration(DUR)
             .withEndAction { hub.hubExpanded = false }   // restore the app icon once un-rotated
             .start()
-        (mains + subs).forEach { hideChild(it) }
+        (mains + subs + mapSubs).forEach { hideChild(it) }
         // Shrink the window only after the children have animated back under the hub.
         postDelayed({ if (!expanded) onRequestCollapse() }, DUR + STAGGER * mains.size)
     }
 
     private fun toggleSpeedRing() {
+        if (mapOpen) { mapOpen = false; mapSubs.forEach { hideChild(it) } }
         speedOpen = !speedOpen
         if (speedOpen) {
             subs.forEachIndexed { j, b ->
@@ -253,6 +274,19 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
             }
         } else {
             subs.forEach { hideChild(it) }
+        }
+    }
+
+    // The 地圖 sub-row shares the horizontal subX offsets but sits at the 地圖 child's row (index 0).
+    private fun toggleMapRing() {
+        if (speedOpen) { speedOpen = false; subs.forEach { hideChild(it) } }
+        mapOpen = !mapOpen
+        if (mapOpen) {
+            mapSubs.forEachIndexed { j, b ->
+                showChild(b, subX(j), mainY(0), delay = j * STAGGER, animate = true)
+            }
+        } else {
+            mapSubs.forEach { hideChild(it) }
         }
     }
 

@@ -121,6 +121,7 @@ class OverlayService : Service() {
         view.onToggleJoystick = { toggleJoystick() }
         view.onToggleLock = { toggleLock() }
         view.onOpenMap = { openMap() }
+        view.onToggleGpx = { toggleGpx() }
         view.onTogglePause = {
             MockLocationService.setMovementPaused(!MockLocationService.state.value.movementPaused)
         }
@@ -155,6 +156,52 @@ class OverlayService : Service() {
                 Intent(this, MapActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
         }
+    }
+
+    /**
+     * 地圖 sub-row GPX toggle. Controls GPX PLAYBACK specifically (start / pause), distinct from the
+     * hub's ▶/⏸ which is the master movement freeze over everything.
+     *
+     * Interaction with the master freeze: starting/resuming GPX here also lifts the global freeze so
+     * the route actually moves (blue = really playing). The global ▶/⏸ remains the master gate — a
+     * user can still freeze a playing route with it; this toggle stays blue (playback is "active")
+     * while the master gate holds the position.
+     */
+    private fun toggleGpx() {
+        val pb = MockLocationService.state.value.playback
+        if (pb.active && !pb.paused) {           // playing -> pause playback only
+            MockLocationService.pausePlayback()
+            return
+        }
+        if (pb.active && pb.paused) {             // paused mid-route -> resume from the cursor
+            MockLocationService.setMovementPaused(false)
+            MockLocationService.resumePlayback()
+            return
+        }
+        // Not active: start. Ensure a route is loaded into the service (may only have a persisted
+        // current_gpx_id if the map was never opened this session).
+        var points = pb.points
+        if (points.size < 2) {
+            val id = SessionStore.loadCurrentGpxId(this) ?: return   // disabled: nothing to play
+            points = GpxStore.get(this, id)
+            if (points.size < 2) return
+            MockLocationService.setPlaybackRoute(points, SessionStore.loadPlaybackMode(this))
+        }
+        if (!PermissionChecker.isLocationGranted(this)) {
+            Toast.makeText(this, R.string.gpx_toggle_need_perm, Toast.LENGTH_LONG).show()
+            return
+        }
+        // Restart from the top if the cursor is parked at the final point (e.g. a finished ONCE run).
+        var startIdx = MockLocationService.state.value.playback.segmentIndex
+            .coerceIn(0, points.size - 1)
+        if (startIdx >= points.size - 1) {
+            MockLocationService.setPlaybackStartIndex(0)
+            startIdx = 0
+        }
+        val start = points[startIdx]
+        MockLocationService.setMovementPaused(false)
+        MockLocationService.startPlayback(this, start.lat, start.lng)
+        MockLocationService.play()
     }
 
     private fun toggleLock() {
@@ -260,6 +307,22 @@ class OverlayService : Service() {
         view.setPaused(s.movementPaused)
         view.setActiveSpeed(bucketOf(s.speedMps))
         view.setLockActive(joystickLocked)
+        view.setGpxState(gpxVisual(s))
+    }
+
+    /**
+     * GPX toggle visual: DISABLED when no route is loaded AND no GPX is selected in the library;
+     * PLAYING (blue) while the playback cursor is advancing; PAUSED (amber) when a route is loaded
+     * but not currently playing. Colour tracks playback.active/paused only — the master ▶/⏸ freeze
+     * is reported separately and can still hold a "playing" route in place.
+     */
+    private fun gpxVisual(s: MockState): ChildButton.GpxVisual {
+        val loaded = s.playback.hasRoute || SessionStore.loadCurrentGpxId(this) != null
+        return when {
+            !loaded -> ChildButton.GpxVisual.DISABLED
+            s.playback.active && !s.playback.paused -> ChildButton.GpxVisual.PLAYING
+            else -> ChildButton.GpxVisual.PAUSED
+        }
     }
 
     /** Map a speed (m/s) to a preset bucket index (0 走 / 1 跑 / 2 車), or -1 if fine-tuned. */
