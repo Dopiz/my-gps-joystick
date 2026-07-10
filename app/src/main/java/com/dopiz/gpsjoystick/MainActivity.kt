@@ -132,6 +132,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderPermissions(serviceState: MockState = MockLocationService.state.value) {
         val p = PermissionChecker.status(this)
+        renderOnboarding(p)
         binding.statusText.text = buildString {
             appendLine("Location granted  : ${mark(p.locationGranted)}")
             appendLine("Mock app selected : ${mark(p.isMockAppSelected)}")
@@ -146,6 +147,29 @@ class MainActivity : AppCompatActivity() {
         binding.speedLabel.text =
             "${getString(R.string.speed_label)}: ${"%.0f".format(serviceState.speedMps)} m/s"
     }
+
+    /**
+     * First-run guidance (Slice 11): while any of the three setup gates is missing, show a
+     * banner listing the outstanding steps; the existing grant buttons perform the jumps. Once
+     * everything is in place it collapses to a short "done" note.
+     */
+    private fun renderOnboarding(p: PermissionChecker.Status) {
+        val allReady = p.locationGranted && p.isMockAppSelected && p.overlayGranted
+        if (allReady) {
+            binding.onboardingText.text = getString(R.string.onboarding_done)
+            binding.onboardingText.visibility = View.VISIBLE
+            return
+        }
+        binding.onboardingText.visibility = View.VISIBLE
+        binding.onboardingText.text = buildString {
+            appendLine(getString(R.string.onboarding_title))
+            appendLine("${step(p.locationGranted)} ${getString(R.string.onboarding_step1)}")
+            appendLine("${step(p.isMockAppSelected)} ${getString(R.string.onboarding_step2)}")
+            append("${step(p.overlayGranted)} ${getString(R.string.onboarding_step3)}")
+        }
+    }
+
+    private fun step(done: Boolean) = if (done) "✅" else "⬜"
 
     private fun maybeRequestNotifications() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&

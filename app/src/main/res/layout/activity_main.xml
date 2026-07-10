@@ -18,6 +18,18 @@
             android:paddingBottom="8dp" />
 
         <TextView
+            android:id="@+id/onboardingText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#FFF8E1"
+            android:textColor="#5D4037"
+            android:padding="12dp"
+            android:textSize="13sp"
+            android:paddingBottom="8dp"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone" />
+
+        <TextView
             android:id="@+id/statusText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
