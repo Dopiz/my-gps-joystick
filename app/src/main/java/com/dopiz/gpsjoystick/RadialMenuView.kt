@@ -54,7 +54,6 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     // Main ring order: joystick, pause, speed. Speed sits at the outer end so its sub-ring
     // fans further out without colliding with the others.
     private val mains = listOf(btnJoystick, btnPause, btnSpeed)
-    private val speedIdxInMains = 2
 
     private val subWalk = ChildButton(context, ChildButton.Glyph.TEXT, "走")
     private val subRun = ChildButton(context, ChildButton.Glyph.TEXT, "跑")
@@ -157,7 +156,10 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     }
 
     private fun mainAngle(i: Int): Double = fanAngle + (i - 1) * STEP
-    private fun subAngle(j: Int): Double = mainAngle(speedIdxInMains) + (j - 1) * SUB_STEP
+    // Sub-ring is an OUTER arc centred on the same toward-screen-centre [fanAngle] as the main
+    // fan, so 走/跑/車 stay on-screen even when the hub (and thus the speed button) sits against
+    // an edge — anchoring the sub arc to the speed button's own radial angle would fan it off-screen.
+    private fun subAngle(j: Int): Double = fanAngle + (j - 1) * SUB_STEP
 
     private fun centerX(angle: Double, radius: Float) = hubCX + radius * cos(angle).toFloat()
     private fun centerY(angle: Double, radius: Float) = hubCY + radius * sin(angle).toFloat()
