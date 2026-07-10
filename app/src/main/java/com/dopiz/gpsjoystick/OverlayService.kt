@@ -26,7 +26,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlin.math.atan2
 
 /**
  * Hosts the floating overlay(s) (SYSTEM_ALERT_WINDOW) that must survive switching to other apps.
@@ -54,7 +53,9 @@ class OverlayService : Service() {
     private var winH = 0
     private var hubInWinX = 0f
     private var hubInWinY = 0f
-    private var fanAngle = -Math.PI / 2
+    // Fan-out directions (see RadialMenuView): +1 column down / row right, -1 up / left.
+    private var vDir = 1
+    private var hDir = 1
 
     // --- Joystick window state ---
     private var joystickView: View? = null
@@ -114,7 +115,7 @@ class OverlayService : Service() {
         view.onSetSpeed = { idx -> selectSpeed(idx) }
 
         windowManager.addView(view, params)
-        view.configure(hubInWinX, hubInWinY, fanAngle)
+        view.configure(hubInWinX, hubInWinY, vDir, hDir)
 
         // Reflect current state immediately + keep it live.
         applyState()
@@ -139,28 +140,33 @@ class OverlayService : Service() {
         val view = hubView ?: return
         val params = hubParams ?: return
         val dm = resources.displayMetrics
-        val exp = view.expandedPx
+        val exW = view.expandedW
+        val exH = view.expandedH
 
         val cxScreen = params.x + hubInWinX
         val cyScreen = params.y + hubInWinY
 
-        val nx = fitStart(cxScreen - exp / 2f, exp, dm.widthPixels)
-        val ny = fitStart(cyScreen - exp / 2f, exp, dm.heightPixels)
+        // Grow the column toward the screen centre vertically and the speed row toward it
+        // horizontally, so neither the column nor the 走/跑/車 row runs off the nearest edge.
+        vDir = if (cyScreen < dm.heightPixels / 2f) 1 else -1
+        hDir = if (cxScreen < dm.widthPixels / 2f) 1 else -1
+
+        val hubOffX = view.hubOffsetX(hDir)
+        val hubOffY = view.hubOffsetY(vDir)
+        val nx = fitStart(cxScreen - hubOffX, exW, dm.widthPixels)
+        val ny = fitStart(cyScreen - hubOffY, exH, dm.heightPixels)
 
         hubInWinX = cxScreen - nx
         hubInWinY = cyScreen - ny
-        // Open toward the screen centre so children never fan off the nearest edge.
-        fanAngle = atan2((dm.heightPixels / 2f - cyScreen).toDouble(),
-            (dm.widthPixels / 2f - cxScreen).toDouble())
 
-        params.width = exp
-        params.height = exp
+        params.width = exW
+        params.height = exH
         params.x = nx
         params.y = ny
-        winW = exp
-        winH = exp
+        winW = exW
+        winH = exH
         runCatching { windowManager.updateViewLayout(view, params) }
-        view.configure(hubInWinX, hubInWinY, fanAngle)
+        view.configure(hubInWinX, hubInWinY, vDir, hDir)
         view.expand()
     }
 
@@ -180,7 +186,7 @@ class OverlayService : Service() {
         hubInWinX = view.hubPx / 2f
         hubInWinY = view.hubPx / 2f
         runCatching { windowManager.updateViewLayout(view, params) }
-        view.configure(hubInWinX, hubInWinY, fanAngle)
+        view.configure(hubInWinX, hubInWinY, vDir, hDir)
     }
 
     /** Top-left so a window of [size] fits within [extent]; centres it if it can't fit. */

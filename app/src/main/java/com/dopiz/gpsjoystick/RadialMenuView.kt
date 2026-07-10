@@ -5,15 +5,13 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.widget.FrameLayout
-import kotlin.math.cos
 import kotlin.math.hypot
-import kotlin.math.sin
 
 /**
- * Speed-dial style radial control menu hosted in a floating overlay window.
+ * Speed-dial style linear control menu hosted in a floating overlay window.
  *
- * A draggable circular HUB expands into a fan of child buttons (joystick toggle, ▶/⏸ pause,
- * speed). Tapping speed opens a second sub-ring (走 / 跑 / 車). The view owns only the visuals
+ * A draggable circular HUB expands into a vertical column of child buttons (joystick toggle,
+ * ▶/⏸ pause, speed). Tapping speed opens a horizontal row (走 / 跑 / 車). The view owns only the visuals
  * and gesture routing; the [OverlayService] owns the WindowManager window and resizes it to fit
  * the fan (see [expandedPx]) — the view asks the service to grow/shrink via callbacks so the
  * window is the right size before children animate out.
@@ -28,12 +26,25 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     /** Collapsed hub window is a square of this side. */
     val hubPx: Int = dp(60f).toInt()
     private val childPx: Int = dp(56f).toInt()
-    // Fan radius clears the hub: 96 - hubR(30) - childR(28) = 38dp gap between hub & child edges.
-    private val fanRadiusPx: Float = dp(96f)
-    private val subRadiusPx: Float = dp(156f)
+    private val gapPx: Float = dp(8f)               // >=8dp gap between adjacent discs
+    private val stepPx: Float = childPx + gapPx      // centre-to-centre along a line
+    // Hub centre -> first child centre: hub edge to child edge = gapPx.
+    private val firstOffsetPx: Float = hubPx / 2f + childPx / 2f + gapPx
+    private val marginPx: Float = dp(16f)            // shadow + breathing room at the far edge
 
-    /** Expanded window square side — big enough for the furthest sub-ring button, ring & shadow. */
-    val expandedPx: Int = ((subRadiusPx + childPx / 2f + dp(16f)) * 2f).toInt()
+    // Extents from the hub centre used to size the (non-square) expanded window.
+    private val nearExtentPx: Float = hubPx / 2f + marginPx
+    private val vFarExtentPx: Float = firstOffsetPx + 2 * stepPx + childPx / 2f + marginPx
+    private val hFarExtentPx: Float = 3 * stepPx + childPx / 2f + marginPx
+
+    /** Expanded window is a rectangle: tall enough for the vertical column of 3 children... */
+    val expandedW: Int = (nearExtentPx + hFarExtentPx).toInt()
+    /** ...and wide enough for the horizontal 走/跑/車 row off the speed child. */
+    val expandedH: Int = (nearExtentPx + vFarExtentPx).toInt()
+
+    /** Hub's offset inside the expanded window, given the chosen fan-out directions. */
+    fun hubOffsetX(hDir: Int): Float = if (hDir > 0) nearExtentPx else hFarExtentPx
+    fun hubOffsetY(vDir: Int): Float = if (vDir > 0) nearExtentPx else vFarExtentPx
 
     // --- Callbacks wired by the service ---
     var onHubDrag: (dx: Float, dy: Float) -> Unit = { _, _ -> }
@@ -63,7 +74,11 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
 
     private var hubCX = hubPx / 2f
     private var hubCY = hubPx / 2f
-    private var fanAngle = -Math.PI / 2 // default: open upward
+    // Fan-out directions chosen by the service so the column/row stay on-screen:
+    // vDir = +1 column grows DOWN (hub in top half), -1 grows UP; hDir = +1 speed row grows RIGHT
+    // (hub in left half), -1 grows LEFT.
+    private var vDir = 1
+    private var hDir = 1
 
     private val slop = ViewConfiguration.get(context).scaledTouchSlop
 
@@ -144,26 +159,28 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     // --- Geometry / positioning ---
 
     /**
-     * Position the hub at ([cx],[cy]) in current window coords and set the fan opening direction.
+     * Position the hub at ([cx],[cy]) in current window coords and set the fan-out directions.
      * Called by the service after every window resize.
      */
-    fun configure(cx: Float, cy: Float, fanAngleRad: Double) {
+    fun configure(cx: Float, cy: Float, verticalDir: Int, horizontalDir: Int) {
         hubCX = cx
         hubCY = cy
-        fanAngle = fanAngleRad
+        vDir = verticalDir
+        hDir = horizontalDir
         hub.x = cx - hubPx / 2f
         hub.y = cy - hubPx / 2f
         if (expanded) layoutFan(animate = false)
     }
 
-    private fun mainAngle(i: Int): Double = fanAngle + (i - 1) * STEP
-    // Sub-ring is an OUTER arc centred on the same toward-screen-centre [fanAngle] as the main
-    // fan, so 走/跑/車 stay on-screen even when the hub (and thus the speed button) sits against
-    // an edge — anchoring the sub arc to the speed button's own radial angle would fan it off-screen.
-    private fun subAngle(j: Int): Double = fanAngle + (j - 1) * SUB_STEP
+    // Main children: a straight VERTICAL column from the hub, evenly spaced, growing in [vDir].
+    private fun mainX(@Suppress("UNUSED_PARAMETER") i: Int): Float = hubCX
+    private fun mainY(i: Int): Float = hubCY + vDir * (firstOffsetPx + i * stepPx)
 
-    private fun centerX(angle: Double, radius: Float) = hubCX + radius * cos(angle).toFloat()
-    private fun centerY(angle: Double, radius: Float) = hubCY + radius * sin(angle).toFloat()
+    // Speed sub-menu: a HORIZONTAL row from the speed child (main index 2), growing in [hDir]
+    // toward the screen centre so 走/跑/車 stay on-screen.
+    private val speedY: Float get() = hubCY + vDir * (firstOffsetPx + 2 * stepPx)
+    private fun subX(j: Int): Float = hubCX + hDir * stepPx * (j + 1)
+    private fun subY(@Suppress("UNUSED_PARAMETER") j: Int): Float = speedY
 
     // --- Expand / collapse ---
 
@@ -177,8 +194,7 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
 
     private fun layoutFan(animate: Boolean) {
         mains.forEachIndexed { i, b ->
-            showChild(b, centerX(mainAngle(i), fanRadiusPx), centerY(mainAngle(i), fanRadiusPx),
-                delay = i * STAGGER, animate = animate)
+            showChild(b, mainX(i), mainY(i), delay = i * STAGGER, animate = animate)
         }
         subs.forEach { it.visibility = View.GONE }
     }
@@ -197,8 +213,7 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
         speedOpen = !speedOpen
         if (speedOpen) {
             subs.forEachIndexed { j, b ->
-                showChild(b, centerX(subAngle(j), subRadiusPx), centerY(subAngle(j), subRadiusPx),
-                    delay = j * STAGGER, animate = true)
+                showChild(b, subX(j), subY(j), delay = j * STAGGER, animate = true)
             }
         } else {
             subs.forEach { hideChild(it) }
@@ -249,7 +264,5 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     private companion object {
         const val DUR = 200L
         const val STAGGER = 28L
-        val STEP = Math.toRadians(46.0)
-        val SUB_STEP = Math.toRadians(40.0)
     }
 }
