@@ -34,7 +34,10 @@
     <string name="pause">暫停</string>
     <string name="resume">續播</string>
     <string name="pb_start">開始</string>
+    <string name="pb_pause">暫停</string>
     <string name="stop_playback">停止</string>
+    <string name="map_expand">放大地圖</string>
+    <string name="map_collapse">顯示控制面板</string>
     <string name="mode_loop">模式：循環</string>
     <string name="mode_reverse">模式：往返</string>
     <string name="mode_chip_once">一次</string>

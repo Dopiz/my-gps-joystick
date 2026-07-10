@@ -17,14 +17,35 @@
         app:title="@string/open_map"
         app:titleTextColor="@color/on_surface" />
 
-    <org.osmdroid.views.MapView
-        android:id="@+id/map"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1">
+
+        <org.osmdroid.views.MapView
+            android:id="@+id/map"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- Feature 5: expand/collapse the control card so the map can fill the screen. -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnExpandMap"
+            style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="12dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            app:icon="@drawable/ic_fullscreen"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            android:contentDescription="@string/map_expand" />
+    </FrameLayout>
 
     <!-- Bottom control surface: two titled sections (座標傳送 / 移動巡航) -->
     <com.google.android.material.card.MaterialCardView
+        android:id="@+id/mapControlCard"
         style="@style/Widget.GpsJoystick.Card"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -112,7 +133,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnCoordGo"
-                style="@style/Widget.GpsJoystick.Button.Cta"
+                style="@style/Widget.GpsJoystick.Button.Primary"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
@@ -260,6 +281,8 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_marginEnd="4dp"
+                    app:icon="@drawable/ic_play"
+                    app:iconGravity="textStart"
                     android:text="@string/pb_start" />
 
                 <com.google.android.material.button.MaterialButton
@@ -272,35 +295,17 @@
                     android:text="@string/stop_playback" />
             </LinearLayout>
 
-            <!-- Feature 5: playback HUD -->
-            <TextView
-                android:id="@+id/hudLine"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:fontFeatureSettings="tnum"
-                android:text="@string/hud_no_route"
-                android:textAppearance="@style/TextAppearance.GpsJoystick.Mono" />
-
+            <!-- Feature 3: slim progress bar is the sole (non-textual) playback indicator. -->
             <ProgressBar
                 android:id="@+id/hudProgress"
                 style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="match_parent"
                 android:layout_height="4dp"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="12dp"
                 android:max="100"
                 android:progress="0"
                 android:progressTint="@color/status_active"
                 android:progressBackgroundTint="@color/outline" />
-
-            <TextView
-                android:id="@+id/mapStatus"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:fontFeatureSettings="tnum"
-                android:text="@string/map_tap_hint"
-                android:textAppearance="@style/TextAppearance.GpsJoystick.Label" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 </LinearLayout>

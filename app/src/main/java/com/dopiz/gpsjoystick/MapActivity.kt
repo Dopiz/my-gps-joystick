@@ -4,6 +4,7 @@ import android.graphics.Color
 import android.graphics.Point
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
@@ -47,6 +48,8 @@ class MapActivity : AppCompatActivity() {
     private var pinMarker: Marker? = null
     private var centeredOnce = false
     private var gpxPolyline: Polyline? = null
+    /** Feature 5: whether the control card is collapsed so the map fills the screen. */
+    private var mapExpanded = false
 
     /** The imported route (osmdroid-free); empty until a GPX is loaded. */
     private var routePts: List<GeoPt> = emptyList()
@@ -113,8 +116,10 @@ class MapActivity : AppCompatActivity() {
         binding.btnFavList.setOnClickListener { showFavorites() }
         binding.btnPasteCoord.setOnClickListener { pasteCoordFromClipboard() }
 
-        binding.btnPlay.setOnClickListener { startPlayback() }
-        binding.btnStopPlayback.setOnClickListener { MockLocationService.stopPlayback() }
+        binding.btnPlay.setOnClickListener { togglePlayPause() }
+        // 停止 = 歸零: stop AND rewind the cursor to point 0 so next 開始 starts from the top.
+        binding.btnStopPlayback.setOnClickListener { MockLocationService.resetPlayback() }
+        binding.btnExpandMap.setOnClickListener { toggleControlPanel() }
         setupModeChips()
         setupSpeedChips()
         observeMockState()
@@ -240,7 +245,6 @@ class MapActivity : AppCompatActivity() {
         drawTrack(pts.map { GeoPoint(it.lat, it.lng) })
         routePts = pts
         MockLocationService.setPlaybackRoute(pts, mode)
-        binding.mapStatus.text = getString(R.string.gpx_loaded, pts.size)
     }
 
     private fun drawTrack(points: List<GeoPoint>) {
@@ -270,14 +274,13 @@ class MapActivity : AppCompatActivity() {
         val idx = nearestRouteIndex(p)
         if (idx != null) {
             MockLocationService.setPlaybackStartIndex(idx)
-            binding.mapStatus.text =
-                getString(R.string.start_index_set, idx + 1, routePts.size)
+            Toast.makeText(this,
+                getString(R.string.start_index_set, idx + 1, routePts.size),
+                Toast.LENGTH_SHORT).show()
             return
         }
         showPin(p)
         binding.coordInput.setText("${fmt(p.latitude)}, ${fmt(p.longitude)}")
-        binding.mapStatus.text =
-            getString(R.string.coord_filled, fmt(p.latitude), fmt(p.longitude))
     }
 
     /** @return index of the closest route point within the tap threshold, or null if none. */
@@ -350,7 +353,7 @@ class MapActivity : AppCompatActivity() {
         marker.position = gp
         binding.map.controller.animateTo(gp)
         binding.map.invalidate()
-        binding.mapStatus.text = status
+        Toast.makeText(this, status, Toast.LENGTH_SHORT).show()
     }
 
     /** Drop / move the single preview pin at [p] without moving the mock. */
@@ -503,9 +506,38 @@ class MapActivity : AppCompatActivity() {
         val start = routePts[startIdx]
         // Ensure the injecting service is running, positioned at the start point. Use the
         // playback-aware start so it does NOT discard the route we are about to play.
+        // Lift the global movement freeze so the route actually moves, matching the overlay's
+        // GPX play button (blue = really playing).
+        MockLocationService.setMovementPaused(false)
         MockLocationService.startPlayback(this, start.lat, start.lng)
         MockLocationService.play()
-        binding.mapStatus.text = getString(R.string.playback_started, startIdx + 1)
+    }
+
+    /**
+     * Change 1: stateful 開始/暫停 toggle mirroring the overlay's GPX play/pause. Playing → pause;
+     * paused mid-route → resume from the cursor; stopped → start (from cursor, or point 0 if reset).
+     */
+    private fun togglePlayPause() {
+        val pb = MockLocationService.state.value.playback
+        when {
+            pb.active && !pb.paused -> MockLocationService.pausePlayback()
+            pb.active && pb.paused -> {
+                MockLocationService.setMovementPaused(false)
+                MockLocationService.resumePlayback()
+            }
+            else -> startPlayback()
+        }
+    }
+
+    /** Feature 5: collapse the control card so the OSMDroid map fills the screen; tap again restores. */
+    private fun toggleControlPanel() {
+        mapExpanded = !mapExpanded
+        binding.mapControlCard.visibility = if (mapExpanded) View.GONE else View.VISIBLE
+        binding.btnExpandMap.setIconResource(
+            if (mapExpanded) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen
+        )
+        binding.btnExpandMap.contentDescription =
+            getString(if (mapExpanded) R.string.map_collapse else R.string.map_expand)
     }
 
     /** Batch 1: 3-way playback mode selector (一次 / 巡迴 / 往返). Persisted independently. */
@@ -549,31 +581,17 @@ class MapActivity : AppCompatActivity() {
         }
     }
 
-    /** Feature 5: compact live playback HUD driven from the shared state. */
+    /**
+     * Live playback indicator from the shared state: the slim progress bar (Change 3, the sole
+     * non-textual indicator) plus the 開始/暫停 toggle label + icon (Change 1).
+     */
     private fun updateHud(s: MockState) {
         val pb = s.playback
-        if (!pb.hasRoute) {
-            binding.hudLine.setText(R.string.hud_no_route)
-            binding.hudProgress.progress = 0
-            return
-        }
-        val n = pb.points.size
-        val stateStr = when {
-            pb.active && !pb.paused -> getString(R.string.hud_state_playing)
-            pb.paused -> getString(R.string.hud_state_paused)
-            else -> getString(R.string.hud_state_idle)
-        }
-        val modeStr = getString(
-            when (pb.mode) {
-                PlaybackMode.ONCE -> R.string.hud_mode_once
-                PlaybackMode.LOOP -> R.string.hud_mode_loop
-                PlaybackMode.REVERSE -> R.string.hud_mode_reverse
-            }
-        )
-        val pct = (playbackFraction(pb) * 100).toInt().coerceIn(0, 100)
-        val pointNum = (pb.segmentIndex + 1).coerceIn(1, n)
-        binding.hudLine.text = getString(R.string.hud_line, stateStr, modeStr, pointNum, n, pct)
-        binding.hudProgress.progress = pct
+        binding.hudProgress.progress =
+            if (pb.hasRoute) (playbackFraction(pb) * 100).toInt().coerceIn(0, 100) else 0
+        val playing = pb.active && !pb.paused
+        binding.btnPlay.setText(if (playing) R.string.pb_pause else R.string.pb_start)
+        binding.btnPlay.setIconResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play)
     }
 
     /** Fractional progress (0..1) along the polyline: segment index + progress within segment. */
