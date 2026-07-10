@@ -91,6 +91,9 @@ class JoystickView(context: Context) : View(context) {
     private var cy = 0f
     private var baseRadius = 0f
     private var knobRadius = 0f
+    /** Max distance the knob CENTRE may travel from the base centre, so the knob + its glow stay
+     *  fully inside the view on every side (see [onSizeChanged]). */
+    private var maxTravel = 0f
     private var knobX = 0f
     private var knobY = 0f
     /** Height of the top grip strip in px = how much taller the view is than it is wide. */
@@ -108,6 +111,13 @@ class JoystickView(context: Context) : View(context) {
         cy = handleStrip + w / 2f
         baseRadius = w / 2f * 0.85f
         knobRadius = baseRadius * 0.42f
+        // The knob centre sits at most [maxTravel] from ([cx],[cy]); the knob edge plus its glow
+        // (knobRadius * GLOW) must clear every side. The smallest available half-extent is w/2
+        // (left / right / bottom; cy is offset down by handleStrip so the bottom is the tightest),
+        // so clamp travel to that minus the glow radius and a hairline of safety padding. This
+        // keeps the whole knob + glow on-screen at full deflection instead of clipping past the edge.
+        maxTravel = (w / 2f - knobRadius * GLOW - 1f * resources.displayMetrics.density)
+            .coerceAtLeast(0f)
         knobX = cx
         knobY = cy
     }
@@ -117,7 +127,7 @@ class JoystickView(context: Context) : View(context) {
         canvas.drawCircle(cx, cy, baseRadius, backingPaint)
         canvas.drawCircle(cx, cy, baseRadius, basePaint)
         canvas.drawCircle(cx, cy, baseRadius, if (locked) lockedRingPaint else baseStroke)
-        canvas.drawCircle(knobX, knobY, knobRadius * 1.35f, glowPaint)
+        canvas.drawCircle(knobX, knobY, knobRadius * GLOW, glowPaint)
         when {
             locked -> {
                 canvas.drawCircle(knobX, knobY, knobRadius, knobLockedPaint)
@@ -194,7 +204,8 @@ class JoystickView(context: Context) : View(context) {
         val dx = x - cx
         val dy = y - cy
         val dist = hypot(dx, dy)
-        val clamped = min(dist, baseRadius)
+        // Clamp the knob-centre travel to maxTravel (not baseRadius) so the knob + glow never clip.
+        val clamped = min(dist, maxTravel)
         if (dist > 0f) {
             knobX = cx + dx / dist * clamped
             knobY = cy + dy / dist * clamped
@@ -204,7 +215,7 @@ class JoystickView(context: Context) : View(context) {
         }
         invalidate()
 
-        val magnitude = (clamped / baseRadius).toDouble()
+        val magnitude = if (maxTravel > 0f) (clamped / maxTravel).toDouble() else 0.0
         val east = if (dist > 0f) (dx / dist).toDouble() else 0.0
         // Screen y grows downward; north is up, so negate.
         val north = if (dist > 0f) (-dy / dist).toDouble() else 0.0
@@ -215,5 +226,10 @@ class JoystickView(context: Context) : View(context) {
         knobX = cx
         knobY = cy
         invalidate()
+    }
+
+    private companion object {
+        /** Knob glow radius as a multiple of the knob radius (must match the onDraw glow). */
+        const val GLOW = 1.35f
     }
 }
