@@ -26,7 +26,7 @@ class ChildButton(
     private val label: String? = null,
 ) : View(context) {
 
-    enum class Glyph { HUB, JOYSTICK, PLAY, PAUSE, SPEED, TEXT, WALK, RUN, CAR }
+    enum class Glyph { HUB, JOYSTICK, PLAY, PAUSE, SPEED, TEXT, WALK, RUN, CAR, MAP, LOCK, LOCK_OPEN }
 
     /** Green ring highlight (e.g. joystick visible, current speed bucket). */
     var active: Boolean = false
@@ -72,12 +72,19 @@ class ChildButton(
     private val path = Path()
     private val rect = RectF()
 
-    // Material-style single-path icons (24dp viewport) for the speed row, parsed once.
-    private val iconPath: Path? = when (glyph) {
-        Glyph.WALK -> PathParser.createPathFromPathData(WALK_PATH)
-        Glyph.RUN -> PathParser.createPathFromPathData(RUN_PATH)
-        Glyph.CAR -> PathParser.createPathFromPathData(CAR_PATH)
-        else -> null
+    // Material-style single-path icons (24dp viewport), parsed once per glyph and cached so a
+    // button can swap between LOCK/LOCK_OPEN without re-parsing on every draw.
+    private val iconCache = HashMap<Glyph, Path?>()
+    private fun iconFor(g: Glyph): Path? = iconCache.getOrPut(g) {
+        when (g) {
+            Glyph.WALK -> PathParser.createPathFromPathData(WALK_PATH)
+            Glyph.RUN -> PathParser.createPathFromPathData(RUN_PATH)
+            Glyph.CAR -> PathParser.createPathFromPathData(CAR_PATH)
+            Glyph.MAP -> PathParser.createPathFromPathData(MAP_PATH)
+            Glyph.LOCK -> PathParser.createPathFromPathData(LOCK_PATH)
+            Glyph.LOCK_OPEN -> PathParser.createPathFromPathData(LOCK_OPEN_PATH)
+            else -> null
+        }
     }
 
     init {
@@ -190,7 +197,8 @@ class ChildButton(
                 canvas.drawLine(cx, cy, cx + u * 0.62f, cy - u * 0.62f, glyphStroke)
                 canvas.drawCircle(cx, cy, u * 0.14f, glyphFill)
             }
-            Glyph.WALK, Glyph.RUN, Glyph.CAR -> drawIcon(canvas, cx, cy, r)
+            Glyph.WALK, Glyph.RUN, Glyph.CAR, Glyph.MAP, Glyph.LOCK, Glyph.LOCK_OPEN ->
+                drawIcon(canvas, cx, cy, r)
             Glyph.TEXT -> {
                 textPaint.textSize = r * 1.05f
                 val fm = textPaint.fontMetrics
@@ -201,7 +209,7 @@ class ChildButton(
 
     /** Draw a 24dp-viewport [iconPath] as a solid fill, scaled to fit and centred in the disc. */
     private fun drawIcon(canvas: Canvas, cx: Float, cy: Float, r: Float) {
-        val icon = iconPath ?: return
+        val icon = iconFor(glyph) ?: return
         val box = r * 1.5f            // icon bounding box side within the disc
         val scale = box / 24f
         canvas.save()
@@ -226,5 +234,17 @@ class ChildButton(
             "1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c" +
             "-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-" +
             ".67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"
+        const val MAP_PATH =
+            "M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03" +
+            "L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 " +
+            "2.11V19z"
+        const val LOCK_PATH =
+            "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 " +
+            "2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6" +
+            "c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"
+        const val LOCK_OPEN_PATH =
+            "M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 " +
+            "6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 " +
+            "2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2z"
     }
 }
