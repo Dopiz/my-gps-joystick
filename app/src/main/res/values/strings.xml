@@ -2,12 +2,14 @@
 <resources>
     <string name="app_name">GPS Joystick</string>
     <string name="grant_location">Location</string>
-    <string name="set_mock_app">Mock app</string>
+    <string name="set_mock_app">Mock</string>
     <string name="grant_overlay">Overlay</string>
     <string name="hint_lat">Latitude (e.g. 25.0339)</string>
     <string name="hint_lng">Longitude (e.g. 121.5645)</string>
     <string name="start">Start</string>
     <string name="stop">Stop</string>
+    <string name="start_mock">開始模擬</string>
+    <string name="return_real">回到真實定位</string>
     <string name="speed_label">Speed</string>
     <string name="direction_label">Direction</string>
     <string name="dir_n">N</string>
@@ -19,26 +21,32 @@
     <string name="hide_overlay">隱藏搖桿</string>
     <string name="open_map">開啟地圖</string>
     <string name="import_gpx">匯入 GPX</string>
-    <string name="map_tap_hint">點地圖任一處瞬移到該座標</string>
+    <string name="map_tap_hint">點地圖任一處帶入座標，再按前往移動</string>
+    <string name="coord_filled">已帶入座標 %1$s, %2$s，按前往移動</string>
     <string name="gpx_empty">GPX 檔沒有任何座標點</string>
     <string name="gpx_error">GPX 解析失敗</string>
     <string name="gpx_loaded">已載入 %1$d 個座標點</string>
     <string name="play">播放</string>
     <string name="pause">暫停</string>
     <string name="resume">續播</string>
+    <string name="pb_start">開始</string>
     <string name="stop_playback">停止</string>
     <string name="mode_loop">模式：循環</string>
     <string name="mode_reverse">模式：往返</string>
-    <string name="playback_speed">播放速度</string>
+    <string name="mode_chip_once">一次</string>
+    <string name="mode_chip_loop">巡迴</string>
+    <string name="mode_chip_reverse">往返</string>
+    <string name="playback_speed">移動速度</string>
     <string name="playback_no_route">請先匯入 GPX 路線</string>
     <string name="playback_started">從第 %1$d 點開始播放</string>
     <string name="start_index_set">起點設為第 %1$d 點（共 %2$d 點）</string>
-    <string name="map_route_hint">已載入路線：點路線上的點設為起點，點其他處瞬移</string>
+    <string name="map_route_hint">已載入路線：點路線上的點設為起點，點其他處帶入座標</string>
+    <string name="back">返回</string>
 
     <!-- Feature 1: speed presets + dual-unit speed readout -->
-    <string name="speed_preset_walk">步行 5 km/h</string>
-    <string name="speed_preset_cycle">騎車 15 km/h</string>
-    <string name="speed_preset_drive">開車 40 km/h</string>
+    <string name="speed_preset_walk">走 5</string>
+    <string name="speed_preset_cycle">跑 15</string>
+    <string name="speed_preset_drive">車 40</string>
     <string name="speed_value">速度 %1$s km/h（%2$s m/s）</string>
 
     <!-- Feature 5: playback HUD -->
@@ -46,6 +54,7 @@
     <string name="hud_state_playing">播放中</string>
     <string name="hud_state_paused">暫停</string>
     <string name="hud_state_idle">待機</string>
+    <string name="hud_mode_once">一次</string>
     <string name="hud_mode_loop">循環</string>
     <string name="hud_mode_reverse">往返</string>
     <string name="hud_line">%1$s · %2$s · 點 %3$d/%4$d · %5$d%%</string>
@@ -65,6 +74,10 @@
     <string name="fav_title">收藏地點</string>
     <string name="fav_empty">尚無收藏，點星號按鈕收藏目前座標</string>
     <string name="fav_delete">刪除</string>
+    <string name="fav_name_title">命名收藏</string>
+    <string name="fav_name_hint">名稱</string>
+    <string name="dialog_save">儲存</string>
+    <string name="dialog_cancel">取消</string>
     <string name="pin_dropped">已在 %1$s, %2$s 放置圖釘並瞬移</string>
 
     <!-- Onboarding (Slice 11) -->
@@ -76,7 +89,7 @@
 
     <!-- Section headers -->
     <string name="section_permissions">權限設定</string>
-    <string name="section_position">起始座標</string>
+    <string name="section_position">模擬定位</string>
     <string name="section_controls">操控</string>
     <string name="section_status">狀態</string>
 

@@ -77,6 +77,21 @@ object SessionStore {
     fun loadSpeedChip(context: Context): Int =
         context.getSharedPreferences(PREFS_UI, Context.MODE_PRIVATE).getInt(K_SPEED_CHIP, -1)
 
+    // --- Batch 1: last-selected playback mode (一次 / 巡迴 / 往返), independent of a live session ---
+    private const val K_PB_MODE_UI = "pb_mode_ui"
+
+    fun savePlaybackMode(context: Context, mode: PlaybackMode) {
+        context.getSharedPreferences(PREFS_UI, Context.MODE_PRIVATE)
+            .edit().putString(K_PB_MODE_UI, mode.name).apply()
+    }
+
+    fun loadPlaybackMode(context: Context): PlaybackMode = runCatching {
+        PlaybackMode.valueOf(
+            context.getSharedPreferences(PREFS_UI, Context.MODE_PRIVATE)
+                .getString(K_PB_MODE_UI, PlaybackMode.LOOP.name)!!
+        )
+    }.getOrDefault(PlaybackMode.LOOP)
+
     // --- Feature 6: persisted overlay settings (lock + window positions + joystick visibility) ---
     private const val K_LOCK = "joy_lock"
     private const val K_JOY_VISIBLE = "joy_visible"

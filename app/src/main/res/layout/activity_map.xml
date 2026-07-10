@@ -7,6 +7,16 @@
     android:fitsSystemWindows="true"
     android:background="?android:attr/colorBackground">
 
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/surface"
+        app:navigationIcon="@drawable/ic_arrow_back"
+        app:navigationContentDescription="@string/back"
+        app:title="@string/open_map"
+        app:titleTextColor="@color/on_surface" />
+
     <org.osmdroid.views.MapView
         android:id="@+id/map"
         android:layout_width="match_parent"
@@ -154,6 +164,41 @@
                 android:fontFeatureSettings="tnum"
                 android:textAppearance="@style/TextAppearance.GpsJoystick.Mono" />
 
+            <!-- Batch 1: 3-way playback mode selector -->
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/modeChips"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:singleLine="true"
+                app:singleSelection="true"
+                app:selectionRequired="true">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipModeOnce"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:text="@string/mode_chip_once" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipModeLoop"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:text="@string/mode_chip_loop" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipModeReverse"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:text="@string/mode_chip_reverse" />
+            </com.google.android.material.chip.ChipGroup>
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -167,17 +212,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_marginEnd="4dp"
-                    android:text="@string/play" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnPause"
-                    style="@style/Widget.GpsJoystick.Button.Tonal"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="4dp"
-                    android:layout_marginEnd="4dp"
-                    android:text="@string/pause" />
+                    android:text="@string/pb_start" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnStopPlayback"
@@ -188,14 +223,6 @@
                     android:layout_marginStart="4dp"
                     android:text="@string/stop_playback" />
             </LinearLayout>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnMode"
-                style="@style/Widget.GpsJoystick.Button.Outlined"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/mode_loop" />
 
             <!-- Feature 5: playback HUD -->
             <TextView

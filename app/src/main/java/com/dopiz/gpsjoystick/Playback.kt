@@ -8,7 +8,7 @@ import kotlin.math.hypot
 data class GeoPt(val lat: Double, val lng: Double)
 
 /** How playback behaves when it reaches the end of the route. */
-enum class PlaybackMode { LOOP, REVERSE }
+enum class PlaybackMode { ONCE, LOOP, REVERSE }
 
 /**
  * In-memory GPX playback session. Held inside [MockState]; the service tick loop advances it
@@ -91,6 +91,7 @@ object PlaybackEngine {
         var idx = pb.segmentIndex.coerceIn(0, pts.size - 1)
         var prog = pb.segmentProgress.coerceAtLeast(0.0)
         var forward = pb.forward
+        var finished = false
 
         // Guard against pathological all-zero-length routes spinning forever.
         var guard = pts.size * 4 + 16
@@ -98,6 +99,11 @@ object PlaybackEngine {
             val nextIdx = idx + if (forward) 1 else -1
             if (nextIdx !in pts.indices) {
                 when (pb.mode) {
+                    PlaybackMode.ONCE -> {
+                        // End -> stop at the final point (playback deactivates).
+                        finished = true
+                        remaining = 0.0
+                    }
                     PlaybackMode.LOOP -> {
                         // End -> restart from the start of the route.
                         idx = 0
@@ -122,7 +128,12 @@ object PlaybackEngine {
                 prog = 0.0
             }
         }
-        val next = pb.copy(segmentIndex = idx, segmentProgress = prog, forward = forward)
+        val next = pb.copy(
+            segmentIndex = idx,
+            segmentProgress = prog,
+            forward = forward,
+            active = if (finished) false else pb.active,
+        )
         return next to currentPos(next)
     }
 }

@@ -7,12 +7,15 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
@@ -33,9 +36,10 @@ import kotlin.math.hypot
 
 /**
  * In-app OSMDroid map. Subscribes to [MockLocationService.state] so the marker always equals
- * the current mock coordinates. Hosts GPX playback controls (Slice 9/10): play/pause/resume/stop,
- * loop/reverse mode, a live speed slider, and tap-to-set-start-index on a loaded route.
- * A tap away from the route teleports the mock (Slice 7 behaviour).
+ * the current mock coordinates. Hosts GPX playback controls: a single 開始 (start/restart) plus
+ * 停止, a 3-way mode selector (一次 / 巡迴 / 往返), speed presets 走/跑/車 + a fine-tune slider,
+ * and tap-to-set-start-index on a loaded route. A tap away from a route now PREVIEWS the tapped
+ * coordinate into the input field (no teleport); the user commits the move with 前往.
  */
 class MapActivity : AppCompatActivity() {
 
@@ -64,6 +68,12 @@ class MapActivity : AppCompatActivity() {
 
         binding = ActivityMapBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        setSupportActionBar(binding.toolbar)
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        binding.toolbar.setNavigationOnClickListener { finish() }
+
+        mode = SessionStore.loadPlaybackMode(this)
 
         binding.map.apply {
             setTileSource(TileSourceFactory.MAPNIK)
@@ -103,9 +113,8 @@ class MapActivity : AppCompatActivity() {
         binding.btnFavList.setOnClickListener { showFavorites() }
 
         binding.btnPlay.setOnClickListener { startPlayback() }
-        binding.btnPause.setOnClickListener { togglePause() }
         binding.btnStopPlayback.setOnClickListener { MockLocationService.stopPlayback() }
-        binding.btnMode.setOnClickListener { cycleMode() }
+        setupModeChips()
 
         binding.speedSeek.progress =
             (MockLocationService.state.value.speedMps - SpeedModel.MIN_MPS).toInt().coerceAtLeast(0)
@@ -184,8 +193,9 @@ class MapActivity : AppCompatActivity() {
     }
 
     /**
-     * A tap on/near a loaded route sets the playback start index; a tap elsewhere teleports.
-     * "Near" is judged in screen pixels so it feels the same at any zoom.
+     * A tap on/near a loaded route sets the playback start index; a tap elsewhere now PREVIEWS
+     * the coordinate into the input field (drops a pin, fills "lat, lng") instead of teleporting.
+     * The user commits the move by tapping 前往. "Near" is judged in screen pixels.
      */
     private fun handleTap(p: GeoPoint) {
         val idx = nearestRouteIndex(p)
@@ -195,8 +205,10 @@ class MapActivity : AppCompatActivity() {
                 getString(R.string.start_index_set, idx + 1, routePts.size)
             return
         }
-        MockLocationService.update(this, p.latitude, p.longitude)
-        binding.mapStatus.text = "瞬移到 %.5f, %.5f".format(p.latitude, p.longitude)
+        showPin(p)
+        binding.coordInput.setText("${fmt(p.latitude)}, ${fmt(p.longitude)}")
+        binding.mapStatus.text =
+            getString(R.string.coord_filled, fmt(p.latitude), fmt(p.longitude))
     }
 
     /** @return index of the closest route point within the tap threshold, or null if none. */
@@ -250,8 +262,8 @@ class MapActivity : AppCompatActivity() {
         binding.mapStatus.text = status
     }
 
-    // --- Feature 3: long-press drops a persistent pin + teleports there ---
-    private fun dropPin(p: GeoPoint) {
+    /** Drop / move the single preview pin at [p] without moving the mock. */
+    private fun showPin(p: GeoPoint) {
         val pin = pinMarker ?: Marker(binding.map).apply {
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             title = "圖釘"
@@ -260,16 +272,40 @@ class MapActivity : AppCompatActivity() {
             binding.map.overlays.add(it)
         }
         pin.position = p
+        binding.map.invalidate()
+    }
+
+    // --- Feature 3: long-press drops a persistent pin + teleports there ---
+    private fun dropPin(p: GeoPoint) {
+        showPin(p)
         teleportTo(p.latitude, p.longitude,
             getString(R.string.pin_dropped, fmt(p.latitude), fmt(p.longitude)))
     }
 
-    // --- Feature 3: favorites ---
+    // --- Feature 3 / Batch 1: favorites with a user-chosen name ---
     private fun saveFavorite() {
         val s = MockLocationService.state.value
-        val label = "${fmt(s.latitude)}, ${fmt(s.longitude)}"
-        FavoritesStore.add(this, FavoritesStore.Fav(s.latitude, s.longitude, label))
-        Toast.makeText(this, getString(R.string.fav_saved, label), Toast.LENGTH_SHORT).show()
+        val coordLabel = "${fmt(s.latitude)}, ${fmt(s.longitude)}"
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val input = EditText(this).apply {
+            setText(coordLabel)
+            setSelection(text.length)
+            setSingleLine()
+        }
+        val container = FrameLayout(this).apply {
+            setPadding(pad, pad / 2, pad, 0)
+            addView(input)
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.fav_name_title)
+            .setView(container)
+            .setPositiveButton(R.string.dialog_save) { _, _ ->
+                val name = input.text.toString().trim().ifEmpty { coordLabel }
+                FavoritesStore.add(this, FavoritesStore.Fav(s.latitude, s.longitude, name))
+                Toast.makeText(this, getString(R.string.fav_saved, name), Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
     }
 
     private fun showFavorites() {
@@ -355,8 +391,14 @@ class MapActivity : AppCompatActivity() {
         // Route was already loaded at import; keep the current cursor (possibly a tapped
         // start index) instead of resetting it. Just make sure the mode is current.
         MockLocationService.setPlaybackMode(mode)
-        val startIdx = MockLocationService.state.value.playback.segmentIndex
+        var startIdx = MockLocationService.state.value.playback.segmentIndex
             .coerceIn(0, routePts.size - 1)
+        // 開始 = restart: if the cursor is parked at the final point (e.g. a ONCE run finished),
+        // restart from the top rather than replaying zero-length at the end.
+        if (startIdx >= routePts.size - 1) {
+            MockLocationService.setPlaybackStartIndex(0)
+            startIdx = 0
+        }
         val start = routePts[startIdx]
         // Ensure the injecting service is running, positioned at the start point. Use the
         // playback-aware start so it does NOT discard the route we are about to play.
@@ -365,18 +407,21 @@ class MapActivity : AppCompatActivity() {
         binding.mapStatus.text = getString(R.string.playback_started, startIdx + 1)
     }
 
-    private fun togglePause() {
-        val pb = MockLocationService.state.value.playback
-        if (pb.paused || !pb.active) MockLocationService.resumePlayback()
-        else MockLocationService.pausePlayback()
-    }
-
-    private fun cycleMode() {
-        mode = if (mode == PlaybackMode.LOOP) PlaybackMode.REVERSE else PlaybackMode.LOOP
-        MockLocationService.setPlaybackMode(mode)
-        binding.btnMode.setText(
-            if (mode == PlaybackMode.LOOP) R.string.mode_loop else R.string.mode_reverse
+    /** Batch 1: 3-way playback mode selector (一次 / 巡迴 / 往返). Persisted independently. */
+    private fun setupModeChips() {
+        val chipIds = listOf(
+            binding.chipModeOnce.id, binding.chipModeLoop.id, binding.chipModeReverse.id,
         )
+        val modes = listOf(PlaybackMode.ONCE, PlaybackMode.LOOP, PlaybackMode.REVERSE)
+        binding.modeChips.check(chipIds[modes.indexOf(mode)])
+        binding.modeChips.setOnCheckedStateChangeListener { _, checkedIds ->
+            val idx = chipIds.indexOf(checkedIds.firstOrNull() ?: return@setOnCheckedStateChangeListener)
+            if (idx >= 0) {
+                mode = modes[idx]
+                MockLocationService.setPlaybackMode(mode)
+                SessionStore.savePlaybackMode(this, mode)
+            }
+        }
     }
 
     private fun observeMockState() {
@@ -389,10 +434,6 @@ class MapActivity : AppCompatActivity() {
                         binding.map.controller.setCenter(gp)
                         centeredOnce = true
                     }
-                    binding.btnPause.setText(
-                        if (s.playback.active && !s.playback.paused) R.string.pause
-                        else R.string.resume
-                    )
                     binding.speedValue.text = getString(
                         R.string.speed_value,
                         "%.0f".format(s.speedMps * 3.6),
@@ -420,7 +461,11 @@ class MapActivity : AppCompatActivity() {
             else -> getString(R.string.hud_state_idle)
         }
         val modeStr = getString(
-            if (pb.mode == PlaybackMode.LOOP) R.string.hud_mode_loop else R.string.hud_mode_reverse
+            when (pb.mode) {
+                PlaybackMode.ONCE -> R.string.hud_mode_once
+                PlaybackMode.LOOP -> R.string.hud_mode_loop
+                PlaybackMode.REVERSE -> R.string.hud_mode_reverse
+            }
         )
         val pct = (playbackFraction(pb) * 100).toInt().coerceIn(0, 100)
         val pointNum = (pb.segmentIndex + 1).coerceIn(1, n)
