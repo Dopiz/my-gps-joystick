@@ -271,12 +271,20 @@ class MockLocationService : Service() {
         )
         val s = _state.value
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("GPS Joystick 執行中")
-            .setContentText("模擬座標 ${"%.5f".format(s.latitude)}, ${"%.5f".format(s.longitude)}")
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setContentTitle(getString(R.string.notif_mock_title))
+            .setContentText(
+                getString(
+                    R.string.notif_mock_text,
+                    "%.5f".format(s.latitude),
+                    "%.5f".format(s.longitude),
+                )
+            )
+            .setSmallIcon(R.drawable.ic_stat_location)
+            .setColor(getColor(R.color.brand_primary))
+            .setColorized(true)
             .setOngoing(true)
             .setContentIntent(openIntent)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "停止", stopIntent)
+            .addAction(R.drawable.ic_stat_location, getString(R.string.notif_action_stop), stopIntent)
             .build()
     }
 

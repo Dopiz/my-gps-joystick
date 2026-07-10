@@ -37,8 +37,22 @@
 
     <!-- Onboarding (Slice 11) -->
     <string name="onboarding_title">首次設定（3 步）</string>
-    <string name="onboarding_step1">1. 授予定位權限</string>
-    <string name="onboarding_step2">2. 開發者選項 → 選擇模擬位置應用程式 → 選本 app</string>
-    <string name="onboarding_step3">3. 授予懸浮窗權限（搖桿用）</string>
+    <string name="onboarding_step1">授予定位權限</string>
+    <string name="onboarding_step2">開發者選項 → 選擇模擬位置應用程式 → 選本 app</string>
+    <string name="onboarding_step3">授予懸浮窗權限（搖桿用）</string>
     <string name="onboarding_done">全部設定完成，可以開始使用了。</string>
+
+    <!-- Section headers -->
+    <string name="section_permissions">權限設定</string>
+    <string name="section_position">起始座標</string>
+    <string name="section_controls">操控</string>
+    <string name="section_status">狀態</string>
+
+    <!-- Notifications -->
+    <string name="notif_mock_title">GPS Joystick 執行中</string>
+    <string name="notif_mock_text">模擬座標 %1$s, %2$s</string>
+    <string name="notif_overlay_title">懸浮搖桿顯示中</string>
+    <string name="notif_overlay_text">點此開啟 app，或按隱藏關閉搖桿</string>
+    <string name="notif_action_stop">停止</string>
+    <string name="notif_action_hide">隱藏</string>
 </resources>

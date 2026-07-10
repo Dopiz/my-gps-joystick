@@ -30,16 +30,36 @@ class JoystickView(context: Context) : View(context) {
     /** Called with the incremental raw-screen delta while dragging the window body. */
     var onDragWindow: ((dxRaw: Float, dyRaw: Float) -> Unit)? = null
 
-    private val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(120, 33, 150, 243)
+    // Semi-opaque dark backing so the joystick stays legible over any wallpaper/app behind it.
+    private val backingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(210, 19, 26, 34) // surface #131A22
     }
+    // Translucent blue base ring fill.
+    private val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(46, 59, 130, 246) // primary #3B82F6, low alpha
+    }
+    // Outline in the brand outline color.
     private val baseStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 6f
-        color = Color.WHITE
+        strokeWidth = 4f
+        color = Color.argb(255, 42, 53, 66) // outline #2A3542
     }
+    // Subtle glow behind the knob.
+    private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(70, 59, 130, 246)
+    }
+    // Blue primary knob (resting).
     private val knobPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(230, 25, 118, 210)
+        color = Color.argb(235, 59, 130, 246) // primary #3B82F6
+    }
+    // Brighter knob + ring for the pressed/active state.
+    private val knobPressedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(255, 96, 165, 250) // primary lightened
+    }
+    private val knobRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 3f
+        color = Color.argb(255, 219, 234, 254) // on-primary-container #DBEAFE
     }
 
     private var cx = 0f
@@ -64,9 +84,16 @@ class JoystickView(context: Context) : View(context) {
     }
 
     override fun onDraw(canvas: Canvas) {
+        canvas.drawCircle(cx, cy, baseRadius, backingPaint)
         canvas.drawCircle(cx, cy, baseRadius, basePaint)
         canvas.drawCircle(cx, cy, baseRadius, baseStroke)
-        canvas.drawCircle(knobX, knobY, knobRadius, knobPaint)
+        canvas.drawCircle(knobX, knobY, knobRadius * 1.35f, glowPaint)
+        if (draggingKnob) {
+            canvas.drawCircle(knobX, knobY, knobRadius, knobPressedPaint)
+            canvas.drawCircle(knobX, knobY, knobRadius, knobRingPaint)
+        } else {
+            canvas.drawCircle(knobX, knobY, knobRadius, knobPaint)
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {

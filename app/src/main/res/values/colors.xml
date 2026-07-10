@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand / semantic color tokens (Material Design 3, OLED dark).
+         Referenced only through the theme attributes and @color/... in layouts. -->
+
+    <!-- Primary (blue) -->
+    <color name="brand_primary">#3B82F6</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="primary_container">#1E3A8A</color>
+    <color name="on_primary_container">#DBEAFE</color>
+
+    <!-- Tertiary / CTA accent (orange) -->
+    <color name="brand_tertiary">#F97316</color>
+    <color name="on_tertiary">#FFFFFF</color>
+
+    <!-- Status -->
+    <color name="status_active">#22C55E</color>
+    <color name="brand_error">#EF4444</color>
+    <color name="on_error">#FFFFFF</color>
+
+    <!-- Neutral surfaces (OLED) -->
+    <color name="bg_oled">#0B0F14</color>
+    <color name="surface">#131A22</color>
+    <color name="surface_variant">#1B242E</color>
+    <color name="outline">#2A3542</color>
+    <color name="on_surface">#E5EDF5</color>
+    <color name="on_surface_variant">#94A3B8</color>
+</resources>

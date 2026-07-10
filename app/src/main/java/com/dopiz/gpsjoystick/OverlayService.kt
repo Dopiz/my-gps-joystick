@@ -146,13 +146,16 @@ class OverlayService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("懸浮搖桿顯示中")
-            .setContentText("點此開啟 app，或按隱藏關閉搖桿")
-            .setSmallIcon(android.R.drawable.ic_menu_compass)
+            .setContentTitle(getString(R.string.notif_overlay_title))
+            .setContentText(getString(R.string.notif_overlay_text))
+            .setSmallIcon(R.drawable.ic_stat_location)
+            .setColor(getColor(R.color.brand_primary))
             .setOngoing(true)
             .setContentIntent(openIntent)
             .addAction(
-                Notification.Action.Builder(null, "隱藏", hideIntent).build()
+                Notification.Action.Builder(
+                    null, getString(R.string.notif_action_hide), hideIntent
+                ).build()
             )
             .build()
     }

@@ -1,4 +1,121 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="Theme.GpsJoystick" parent="Theme.Material3.DayNight.NoActionBar" />
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Dark is the primary/default look: every relevant MD3 color attribute is pinned to the
+         OLED dark token set here in the base theme, so the app reads dark regardless of the
+         system light/dark setting. -->
+    <style name="Theme.GpsJoystick" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary (blue) -->
+        <item name="colorPrimary">@color/brand_primary</item>
+        <item name="colorOnPrimary">@color/on_primary</item>
+        <item name="colorPrimaryContainer">@color/primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/on_primary_container</item>
+
+        <!-- Secondary reuses the blue/container ramp -->
+        <item name="colorSecondary">@color/brand_primary</item>
+        <item name="colorOnSecondary">@color/on_primary</item>
+        <item name="colorSecondaryContainer">@color/primary_container</item>
+        <item name="colorOnSecondaryContainer">@color/on_primary_container</item>
+
+        <!-- Tertiary / CTA accent (orange) -->
+        <item name="colorTertiary">@color/brand_tertiary</item>
+        <item name="colorOnTertiary">@color/on_tertiary</item>
+
+        <!-- Error -->
+        <item name="colorError">@color/brand_error</item>
+        <item name="colorOnError">@color/on_error</item>
+
+        <!-- Neutral surfaces -->
+        <item name="android:colorBackground">@color/bg_oled</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/on_surface</item>
+        <item name="colorSurfaceVariant">@color/surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/on_surface_variant</item>
+        <item name="colorSurfaceContainerLowest">@color/bg_oled</item>
+        <item name="colorSurfaceContainerLow">@color/surface</item>
+        <item name="colorSurfaceContainer">@color/surface_variant</item>
+        <item name="colorSurfaceContainerHigh">@color/surface_variant</item>
+        <item name="colorSurfaceContainerHighest">@color/surface_variant</item>
+        <item name="colorOutline">@color/outline</item>
+        <item name="colorOutlineVariant">@color/outline</item>
+
+        <!-- System bars: dark background wants light (default) status/nav icons. -->
+        <item name="android:statusBarColor">@color/bg_oled</item>
+        <item name="android:navigationBarColor">@color/bg_oled</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <!-- ===== Component styles ===== -->
+
+    <!-- Single primary CTA per screen (Start mock / Play): filled, CTA orange. -->
+    <style name="Widget.GpsJoystick.Button.Cta" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/brand_tertiary</item>
+        <item name="android:textColor">@color/on_tertiary</item>
+        <item name="iconTint">@color/on_tertiary</item>
+        <item name="android:minHeight">48dp</item>
+    </style>
+
+    <!-- Filled primary (blue) for the play action on the map. -->
+    <style name="Widget.GpsJoystick.Button.Primary" parent="Widget.Material3.Button">
+        <item name="android:minHeight">48dp</item>
+    </style>
+
+    <!-- Secondary action: tonal. -->
+    <style name="Widget.GpsJoystick.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="android:minHeight">48dp</item>
+    </style>
+
+    <!-- Secondary action: outlined. -->
+    <style name="Widget.GpsJoystick.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:minHeight">48dp</item>
+    </style>
+
+    <!-- Destructive (Stop): error-tinted outlined. -->
+    <style name="Widget.GpsJoystick.Button.Destructive" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:textColor">@color/brand_error</item>
+        <item name="iconTint">@color/brand_error</item>
+        <item name="strokeColor">@color/brand_error</item>
+        <item name="rippleColor">@color/brand_error</item>
+        <item name="android:minHeight">48dp</item>
+    </style>
+
+    <!-- Cards: surface-variant, rounded, subtle MD3 elevation. -->
+    <style name="Widget.GpsJoystick.Card" parent="Widget.Material3.CardView.Filled">
+        <item name="cardBackgroundColor">@color/surface_variant</item>
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">1dp</item>
+        <item name="contentPadding">16dp</item>
+        <item name="strokeColor">@color/outline</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+
+    <!-- Outlined text inputs for lat/lng. -->
+    <style name="Widget.GpsJoystick.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxStrokeColor">@color/brand_primary</item>
+        <item name="hintTextColor">@color/on_surface_variant</item>
+    </style>
+
+    <!-- Type scale tweaks: MD3 weights. -->
+    <style name="TextAppearance.GpsJoystick.Headline" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/on_surface</item>
+    </style>
+
+    <style name="TextAppearance.GpsJoystick.Title" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textColor">@color/on_surface</item>
+    </style>
+
+    <style name="TextAppearance.GpsJoystick.Body" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">@color/on_surface</item>
+    </style>
+
+    <style name="TextAppearance.GpsJoystick.Label" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textColor">@color/on_surface_variant</item>
+    </style>
+
+    <!-- Monospace status readout with tabular figures. -->
+    <style name="TextAppearance.GpsJoystick.Mono" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:textColor">@color/on_surface_variant</item>
+    </style>
 </resources>

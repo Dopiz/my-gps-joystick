@@ -1,195 +1,397 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="16dp">
+    android:background="?android:attr/colorBackground"
+    android:fitsSystemWindows="true"
+    android:clipToPadding="false">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:padding="16dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/app_name"
-            android:textSize="22sp"
-            android:textStyle="bold"
+            android:textAppearance="@style/TextAppearance.GpsJoystick.Headline"
             android:paddingBottom="8dp" />
 
-        <TextView
-            android:id="@+id/onboardingText"
+        <!-- Onboarding stepper card -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/onboardingCard"
+            style="@style/Widget.GpsJoystick.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#FFF8E1"
-            android:textColor="#5D4037"
-            android:padding="12dp"
-            android:textSize="13sp"
-            android:paddingBottom="8dp"
-            android:layout_marginBottom="8dp"
-            android:visibility="gone" />
+            android:layout_marginTop="8dp">
 
-        <TextView
-            android:id="@+id/statusText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:textSize="13sp"
-            android:paddingBottom="8dp" />
-
-        <TextView
-            android:id="@+id/errorText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#C62828"
-            android:textSize="13sp"
-            android:paddingBottom="8dp"
-            android:visibility="gone" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingBottom="8dp">
-
-            <Button
-                android:id="@+id/btnGrantLocation"
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/grant_location" />
+                android:orientation="vertical">
 
-            <Button
-                android:id="@+id/btnSetMockApp"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/set_mock_app" />
+                <TextView
+                    android:id="@+id/onboardingTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/onboarding_title"
+                    android:textAppearance="@style/TextAppearance.GpsJoystick.Title" />
 
-            <Button
-                android:id="@+id/btnGrantOverlay"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/grant_overlay" />
-        </LinearLayout>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="12dp">
 
-        <EditText
-            android:id="@+id/inputLat"
+                    <ImageView
+                        android:id="@+id/stepIcon1"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_step_todo"
+                        android:contentDescription="@string/onboarding_step1" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:text="@string/onboarding_step1"
+                        android:textAppearance="@style/TextAppearance.GpsJoystick.Body" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="8dp">
+
+                    <ImageView
+                        android:id="@+id/stepIcon2"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_step_todo"
+                        android:contentDescription="@string/onboarding_step2" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:text="@string/onboarding_step2"
+                        android:textAppearance="@style/TextAppearance.GpsJoystick.Body" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="8dp">
+
+                    <ImageView
+                        android:id="@+id/stepIcon3"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_step_todo"
+                        android:contentDescription="@string/onboarding_step3" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:text="@string/onboarding_step3"
+                        android:textAppearance="@style/TextAppearance.GpsJoystick.Body" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Permissions -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.GpsJoystick.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/hint_lat"
-            android:inputType="numberDecimal|numberSigned"
-            android:importantForAutofill="no" />
+            android:layout_marginTop="8dp">
 
-        <EditText
-            android:id="@+id/inputLng"
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/section_permissions"
+                    android:textAppearance="@style/TextAppearance.GpsJoystick.Title"
+                    android:paddingBottom="8dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnGrantLocation"
+                        style="@style/Widget.GpsJoystick.Button.Tonal"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:text="@string/grant_location" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSetMockApp"
+                        style="@style/Widget.GpsJoystick.Button.Tonal"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginEnd="4dp"
+                        android:text="@string/set_mock_app" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnGrantOverlay"
+                        style="@style/Widget.GpsJoystick.Button.Tonal"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="4dp"
+                        android:text="@string/grant_overlay" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Position + primary actions -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.GpsJoystick.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/hint_lng"
-            android:inputType="numberDecimal|numberSigned"
-            android:importantForAutofill="no" />
+            android:layout_marginTop="8dp">
 
-        <LinearLayout
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/section_position"
+                    android:textAppearance="@style/TextAppearance.GpsJoystick.Title"
+                    android:paddingBottom="8dp" />
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.GpsJoystick.TextInputLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/hint_lat">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/inputLat"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="numberDecimal|numberSigned"
+                        android:importantForAutofill="no" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.GpsJoystick.TextInputLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:hint="@string/hint_lng">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/inputLng"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="numberDecimal|numberSigned"
+                        android:importantForAutofill="no" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <TextView
+                    android:id="@+id/errorText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/brand_error"
+                    android:textAppearance="@style/TextAppearance.GpsJoystick.Body"
+                    android:layout_marginTop="8dp"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnStart"
+                        style="@style/Widget.GpsJoystick.Button.Cta"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:text="@string/start" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnStop"
+                        style="@style/Widget.GpsJoystick.Button.Destructive"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="4dp"
+                        android:text="@string/stop" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnToggleOverlay"
+                        style="@style/Widget.GpsJoystick.Button.Outlined"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:text="@string/show_overlay" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnOpenMap"
+                        style="@style/Widget.GpsJoystick.Button.Outlined"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="4dp"
+                        android:text="@string/open_map" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Controls: speed + direction -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.GpsJoystick.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingBottom="8dp">
+            android:layout_marginTop="8dp">
 
-            <Button
-                android:id="@+id/btnToggleOverlay"
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/show_overlay" />
+                android:orientation="vertical">
 
-            <Button
-                android:id="@+id/btnOpenMap"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/open_map" />
-        </LinearLayout>
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/section_controls"
+                    android:textAppearance="@style/TextAppearance.GpsJoystick.Title" />
 
-        <LinearLayout
+                <TextView
+                    android:id="@+id/speedLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:fontFeatureSettings="tnum"
+                    android:text="@string/speed_label"
+                    android:textAppearance="@style/TextAppearance.GpsJoystick.Body" />
+
+                <SeekBar
+                    android:id="@+id/speedSeek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:max="29" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/direction_label"
+                    android:textAppearance="@style/TextAppearance.GpsJoystick.Label" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnNorth"
+                    style="@style/Widget.GpsJoystick.Button.Tonal"
+                    android:layout_width="120dp"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/dir_n" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnWest"
+                        style="@style/Widget.GpsJoystick.Button.Tonal"
+                        android:layout_width="108dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="4dp"
+                        android:text="@string/dir_w" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnHold"
+                        style="@style/Widget.GpsJoystick.Button.Outlined"
+                        android:layout_width="108dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginEnd="4dp"
+                        android:text="@string/dir_hold" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnEast"
+                        style="@style/Widget.GpsJoystick.Button.Tonal"
+                        android:layout_width="108dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:text="@string/dir_e" />
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSouth"
+                    style="@style/Widget.GpsJoystick.Button.Tonal"
+                    android:layout_width="120dp"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/dir_s" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Status readout -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.GpsJoystick.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp">
+            android:layout_marginTop="8dp">
 
-            <Button
-                android:id="@+id/btnStart"
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/start" />
+                android:orientation="vertical">
 
-            <Button
-                android:id="@+id/btnStop"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/stop" />
-        </LinearLayout>
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/section_status"
+                    android:textAppearance="@style/TextAppearance.GpsJoystick.Title"
+                    android:paddingBottom="8dp" />
 
-        <TextView
-            android:id="@+id/speedLabel"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="8dp"
-            android:text="@string/speed_label" />
-
-        <SeekBar
-            android:id="@+id/speedSeek"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="29" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="8dp"
-            android:text="@string/direction_label"
-            android:textStyle="bold" />
-
-        <Button
-            android:id="@+id/btnNorth"
-            android:layout_width="120dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:text="@string/dir_n" />
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/btnWest"
-                android:layout_width="120dp"
-                android:layout_height="wrap_content"
-                android:text="@string/dir_w" />
-
-            <Button
-                android:id="@+id/btnHold"
-                android:layout_width="120dp"
-                android:layout_height="wrap_content"
-                android:text="@string/dir_hold" />
-
-            <Button
-                android:id="@+id/btnEast"
-                android:layout_width="120dp"
-                android:layout_height="wrap_content"
-                android:text="@string/dir_e" />
-        </LinearLayout>
-
-        <Button
-            android:id="@+id/btnSouth"
-            android:layout_width="120dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:text="@string/dir_s" />
+                <TextView
+                    android:id="@+id/statusText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFeatureSettings="tnum"
+                    android:textAppearance="@style/TextAppearance.GpsJoystick.Mono" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
 </ScrollView>

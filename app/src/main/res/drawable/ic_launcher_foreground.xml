@@ -4,7 +4,25 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Joystick base ring -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,30a12,12 0,1 0,0.01 0zM54,42a4,4 0,1 1,-0.01 0zM54,18C41.85,18 32,27.85 32,40c0,16.5 22,34 22,34s22,-17.5 22,-34C76,27.85 66.15,18 54,18z" />
+        android:strokeColor="#3B82F6"
+        android:strokeWidth="5"
+        android:strokeAlpha="0.55"
+        android:fillColor="#00000000"
+        android:pathData="M54,54m-30,0a30,30 0,1 0,60 0a30,30 0,1 0,-60 0" />
+    <!-- Joystick stem -->
+    <path
+        android:strokeColor="#3B82F6"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,54 L64,40" />
+    <!-- Knob -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M64,40m-13,0a13,13 0,1 0,26 0a13,13 0,1 0,-26 0" />
+    <path
+        android:fillColor="#DBEAFE"
+        android:pathData="M64,40m-5,0a5,5 0,1 0,10 0a5,5 0,1 0,-10 0" />
 </vector>

@@ -155,21 +155,17 @@ class MainActivity : AppCompatActivity() {
      */
     private fun renderOnboarding(p: PermissionChecker.Status) {
         val allReady = p.locationGranted && p.isMockAppSelected && p.overlayGranted
-        if (allReady) {
-            binding.onboardingText.text = getString(R.string.onboarding_done)
-            binding.onboardingText.visibility = View.VISIBLE
-            return
-        }
-        binding.onboardingText.visibility = View.VISIBLE
-        binding.onboardingText.text = buildString {
-            appendLine(getString(R.string.onboarding_title))
-            appendLine("${step(p.locationGranted)} ${getString(R.string.onboarding_step1)}")
-            appendLine("${step(p.isMockAppSelected)} ${getString(R.string.onboarding_step2)}")
-            append("${step(p.overlayGranted)} ${getString(R.string.onboarding_step3)}")
-        }
+        binding.onboardingTitle.setText(
+            if (allReady) R.string.onboarding_done else R.string.onboarding_title
+        )
+        stepIcon(binding.stepIcon1, p.locationGranted)
+        stepIcon(binding.stepIcon2, p.isMockAppSelected)
+        stepIcon(binding.stepIcon3, p.overlayGranted)
     }
 
-    private fun step(done: Boolean) = if (done) "✅" else "⬜"
+    private fun stepIcon(view: android.widget.ImageView, done: Boolean) {
+        view.setImageResource(if (done) R.drawable.ic_step_done else R.drawable.ic_step_todo)
+    }
 
     private fun maybeRequestNotifications() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
