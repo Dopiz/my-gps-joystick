@@ -19,4 +19,8 @@
     <string name="hide_overlay">隱藏搖桿</string>
     <string name="open_map">開啟地圖</string>
     <string name="import_gpx">匯入 GPX</string>
+    <string name="map_tap_hint">點地圖任一處瞬移到該座標</string>
+    <string name="gpx_empty">GPX 檔沒有任何座標點</string>
+    <string name="gpx_error">GPX 解析失敗</string>
+    <string name="gpx_loaded">已載入 %1$d 個座標點</string>
 </resources>

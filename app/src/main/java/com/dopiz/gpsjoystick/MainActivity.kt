@@ -53,6 +53,9 @@ class MainActivity : AppCompatActivity() {
         binding.btnStop.setOnClickListener { MockLocationService.stop(this) }
 
         binding.btnToggleOverlay.setOnClickListener { toggleOverlay() }
+        binding.btnOpenMap.setOnClickListener {
+            startActivity(android.content.Intent(this, MapActivity::class.java))
+        }
 
         binding.btnNorth.setOnClickListener { MockLocationService.setDirection(Direction.N) }
         binding.btnSouth.setOnClickListener { MockLocationService.setDirection(Direction.S) }

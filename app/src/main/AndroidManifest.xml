@@ -32,6 +32,10 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
+        <activity
+            android:name=".MapActivity"
+            android:exported="false" />
+
         <service
             android:name=".OverlayService"
             android:exported="false"
