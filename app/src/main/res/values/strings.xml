@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">GPS Joystick</string>
+    <string name="grant_location">Location</string>
+    <string name="set_mock_app">Mock app</string>
+    <string name="grant_overlay">Overlay</string>
 </resources>
