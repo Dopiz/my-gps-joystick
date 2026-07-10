@@ -3,18 +3,13 @@ package com.dopiz.gpsjoystick
 import android.graphics.Color
 import android.graphics.Point
 import android.os.Bundle
-import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.text.InputType
-import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -60,6 +55,20 @@ class MapActivity : AppCompatActivity() {
             if (result.resultCode == RESULT_OK) {
                 result.data?.getStringExtra(GpxLibraryActivity.EXTRA_GPX_ID)
                     ?.let { loadGpxById(it) }
+            }
+        }
+
+    private val favLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK) {
+                val data = result.data ?: return@registerForActivityResult
+                val lat = data.getDoubleExtra(FavoritesActivity.EXTRA_FAV_LAT, Double.NaN)
+                val lng = data.getDoubleExtra(FavoritesActivity.EXTRA_FAV_LNG, Double.NaN)
+                if (!lat.isNaN() && !lng.isNaN()) {
+                    binding.coordInput.setText("${fmt(lat)}, ${fmt(lng)}")
+                    teleportTo(lat, lng,
+                        getString(R.string.coord_teleport, fmt(lat), fmt(lng)))
+                }
             }
         }
 
@@ -113,7 +122,9 @@ class MapActivity : AppCompatActivity() {
             if (actionId == EditorInfo.IME_ACTION_GO) { submitCoord(); true } else false
         }
         binding.btnFavSave.setOnClickListener { saveFavorite() }
-        binding.btnFavList.setOnClickListener { showFavorites() }
+        binding.btnFavList.setOnClickListener {
+            favLauncher.launch(android.content.Intent(this, FavoritesActivity::class.java))
+        }
         binding.btnPasteCoord.setOnClickListener { pasteCoordFromClipboard() }
 
         binding.btnPlay.setOnClickListener { togglePlayPause() }
@@ -410,75 +421,6 @@ class MapActivity : AppCompatActivity() {
             }
             .setNegativeButton(R.string.dialog_cancel, null)
             .show()
-    }
-
-    private fun showFavorites() {
-        val dialog = BottomSheetDialog(this)
-        val dp = resources.displayMetrics.density
-        fun px(v: Int) = (v * dp).toInt()
-
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(px(16), px(16), px(16), px(16))
-            setBackgroundColor(getColor(R.color.surface))
-        }
-        container.addView(TextView(this).apply {
-            setText(R.string.fav_title)
-            setTextAppearance(R.style.TextAppearance_GpsJoystick_Title)
-        })
-
-        val favs = FavoritesStore.list(this)
-        if (favs.isEmpty()) {
-            container.addView(TextView(this).apply {
-                setText(R.string.fav_empty)
-                setTextAppearance(R.style.TextAppearance_GpsJoystick_Body)
-                setPadding(0, px(12), 0, 0)
-            })
-        } else {
-            favs.forEachIndexed { index, fav ->
-                container.addView(favoriteRow(index, fav, dialog, ::px))
-            }
-        }
-
-        dialog.setContentView(ScrollView(this).apply {
-            addView(container, ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        })
-        dialog.show()
-    }
-
-    private fun favoriteRow(
-        index: Int, fav: FavoritesStore.Fav, dialog: BottomSheetDialog, px: (Int) -> Int,
-    ): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(0, px(4), 0, px(4))
-
-        addView(TextView(this@MapActivity).apply {
-            text = fav.label
-            setTextAppearance(R.style.TextAppearance_GpsJoystick_Body)
-            minHeight = px(48)
-            gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            setOnClickListener {
-                teleportTo(fav.lat, fav.lng,
-                    getString(R.string.coord_teleport, fmt(fav.lat), fmt(fav.lng)))
-                dialog.dismiss()
-            }
-        })
-        addView(TextView(this@MapActivity).apply {
-            setText(R.string.fav_delete)
-            setTextAppearance(R.style.TextAppearance_GpsJoystick_Label)
-            setTextColor(getColor(R.color.brand_error))
-            minHeight = px(48)
-            minWidth = px(48)
-            gravity = Gravity.CENTER
-            setOnClickListener {
-                FavoritesStore.removeAt(this@MapActivity, index)
-                dialog.dismiss()
-                showFavorites()
-            }
-        })
     }
 
     private fun fmt(v: Double): String = "%.5f".format(v)

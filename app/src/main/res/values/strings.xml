@@ -97,6 +97,10 @@
     <string name="fav_saved">已收藏 %1$s</string>
     <string name="fav_title">收藏地點</string>
     <string name="fav_empty">尚無收藏，點星號按鈕收藏目前座標</string>
+    <string name="fav_lib_empty">尚無收藏，在地圖輸入座標後按「儲存座標」加入</string>
+    <string name="fav_rename_title">重新命名收藏</string>
+    <string name="fav_delete_confirm">確定刪除「%1$s」？</string>
+    <string name="fav_deleted">已刪除「%1$s」</string>
     <string name="fav_delete">刪除</string>
     <string name="fav_name_title">命名收藏</string>
     <string name="fav_name_hint">名稱</string>

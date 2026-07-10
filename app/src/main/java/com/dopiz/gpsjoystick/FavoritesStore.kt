@@ -32,6 +32,14 @@ object FavoritesStore {
         persist(context, items)
     }
 
+    fun rename(context: Context, index: Int, newLabel: String) {
+        val items = list(context).toMutableList()
+        if (index in items.indices) {
+            items[index] = items[index].copy(label = newLabel)
+            persist(context, items)
+        }
+    }
+
     fun removeAt(context: Context, index: Int) {
         val items = list(context).toMutableList()
         if (index in items.indices) {

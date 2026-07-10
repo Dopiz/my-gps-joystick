@@ -44,6 +44,10 @@
             android:name=".GpxLibraryActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".FavoritesActivity"
+            android:exported="false" />
+
         <service
             android:name=".OverlayService"
             android:exported="false"
