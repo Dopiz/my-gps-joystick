@@ -94,7 +94,7 @@ class OverlayService : Service() {
             ),
         )
 
-        val lockPx = (resources.displayMetrics.density * 48).toInt()
+        val lockPx = (resources.displayMetrics.density * 40).toInt()
         val lockBtn = TextView(this).apply {
             text = LOCK_GLYPH_OFF
             gravity = Gravity.CENTER
@@ -136,10 +136,13 @@ class OverlayService : Service() {
             @Suppress("DEPRECATION")
             WindowManager.LayoutParams.TYPE_PHONE
         }
-        val sizePx = (resources.displayMetrics.density * 140).toInt()
+        val density = resources.displayMetrics.density
+        val widthPx = (density * 96).toInt()
+        // Extra 24dp of height becomes the top drag-handle strip drawn by JoystickView.
+        val heightPx = widthPx + (density * 24).toInt()
         return WindowManager.LayoutParams(
-            sizePx,
-            sizePx,
+            widthPx,
+            heightPx,
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT,

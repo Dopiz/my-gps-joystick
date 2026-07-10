@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.view.MotionEvent
 import android.view.View
 import kotlin.math.hypot
@@ -15,7 +16,8 @@ import kotlin.math.min
  * forwards that to [MockLocationService.setJoystick], so joystick angle → move direction and
  * deflection → speed (via the shared [SpeedModel]). Releasing recenters and stops.
  *
- * A touch that starts outside the base circle (the square view's corners) is treated as a
+ * The view reserves a grip strip along its top edge (any height by which the view is taller than
+ * it is wide). A touch that starts on that strip — or outside the base circle — is treated as a
  * window-drag gesture and forwarded to [onDragWindow] so the whole overlay stays repositionable.
  */
 class JoystickView(context: Context) : View(context) {
@@ -80,6 +82,10 @@ class JoystickView(context: Context) : View(context) {
         strokeWidth = 5f
         color = Color.argb(255, 34, 197, 94) // status_active #22C55E
     }
+    // Grip dots on the top drag handle, so it reads as "press here to move".
+    private val gripPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(200, 148, 163, 184) // on-surface-variant #94A3B8
+    }
 
     private var cx = 0f
     private var cy = 0f
@@ -87,6 +93,8 @@ class JoystickView(context: Context) : View(context) {
     private var knobRadius = 0f
     private var knobX = 0f
     private var knobY = 0f
+    /** Height of the top grip strip in px = how much taller the view is than it is wide. */
+    private var handleStrip = 0f
 
     private var draggingKnob = false
     private var movingWindow = false
@@ -94,15 +102,18 @@ class JoystickView(context: Context) : View(context) {
     private var lastRawY = 0f
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        // The top strip is whatever extra height the view has beyond a w×w square.
+        handleStrip = (h - w).coerceAtLeast(0).toFloat()
         cx = w / 2f
-        cy = h / 2f
-        baseRadius = min(w, h) / 2f * 0.85f
+        cy = handleStrip + w / 2f
+        baseRadius = w / 2f * 0.85f
         knobRadius = baseRadius * 0.42f
         knobX = cx
         knobY = cy
     }
 
     override fun onDraw(canvas: Canvas) {
+        if (handleStrip > 0f) drawGrip(canvas)
         canvas.drawCircle(cx, cy, baseRadius, backingPaint)
         canvas.drawCircle(cx, cy, baseRadius, basePaint)
         canvas.drawCircle(cx, cy, baseRadius, if (locked) lockedRingPaint else baseStroke)
@@ -120,14 +131,29 @@ class JoystickView(context: Context) : View(context) {
         }
     }
 
+    private val handleRect = RectF()
+
+    /** A rounded pill bar with three grip dots, centred in the top strip: "press here to move". */
+    private fun drawGrip(canvas: Canvas) {
+        val gy = handleStrip / 2f
+        val halfW = baseRadius * 0.55f
+        val halfH = handleStrip * 0.34f
+        handleRect.set(cx - halfW, gy - halfH, cx + halfW, gy + halfH)
+        canvas.drawRoundRect(handleRect, halfH, halfH, backingPaint)
+        val r = handleStrip * 0.09f
+        val gap = r * 3.2f
+        for (i in -1..1) canvas.drawCircle(cx + i * gap, gy, r, gripPaint)
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 val d = hypot(event.x - cx, event.y - cy)
-                if (d <= baseRadius) {
+                if (event.y >= handleStrip && d <= baseRadius) {
                     draggingKnob = true
                     updateKnob(event.x, event.y)
                 } else {
+                    // Top grip strip or the corners outside the base circle → move the window.
                     movingWindow = true
                     lastRawX = event.rawX
                     lastRawY = event.rawY
