@@ -47,6 +47,15 @@ class MockLocationService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        // Fresh process (e.g. after a process kill): rehydrate the last session so the
+        // null-intent restart path below can resume the last position + playback.
+        if (!_state.value.isRunning) {
+            SessionStore.load(this)?.let { restored -> _state.update { restored } }
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
@@ -91,6 +100,7 @@ class MockLocationService : Service() {
                 lastTick = now
                 advancePosition(dtSeconds)
                 pushCurrentLocation()
+                SessionStore.save(this@MockLocationService, _state.value)
                 delay(TICK_MS)
             }
         }
@@ -99,6 +109,12 @@ class MockLocationService : Service() {
     /** Direction move engine step: shift the held position along the current heading. */
     private fun advancePosition(dtSeconds: Double) {
         val s = _state.value
+        // GPX playback, when active, owns the position (different algorithm; only SpeedModel shared).
+        if (s.playback.active && !s.playback.paused && s.playback.hasRoute) {
+            val (pb, pos) = PlaybackEngine.step(s.playback, s.speedMps, dtSeconds)
+            _state.update { it.copy(playback = pb, latitude = pos.lat, longitude = pos.lng) }
+            return
+        }
         val (lat, lng) = if (s.headingActive) {
             DirectionEngine.stepVector(
                 s.latitude, s.longitude, s.headingNorth, s.headingEast, s.speedMps, dtSeconds
@@ -160,11 +176,12 @@ class MockLocationService : Service() {
             longitude = s.longitude
             accuracy = 1f
             altitude = 0.0
-            val moving = s.headingActive || s.direction != Direction.NONE
-            bearing = if (s.headingActive) {
-                DirectionEngine.bearingOf(s.headingNorth, s.headingEast)
-            } else {
-                s.direction.bearingDegrees
+            val playing = s.playback.active && !s.playback.paused && s.playback.hasRoute
+            val moving = playing || s.headingActive || s.direction != Direction.NONE
+            bearing = when {
+                playing -> PlaybackEngine.currentBearing(s.playback)
+                s.headingActive -> DirectionEngine.bearingOf(s.headingNorth, s.headingEast)
+                else -> s.direction.bearingDegrees
             }
             speed = if (moving) s.speedMps.toFloat() else 0f
             time = System.currentTimeMillis()
@@ -195,6 +212,7 @@ class MockLocationService : Service() {
             locationManager.removeTestProvider(LocationManager.GPS_PROVIDER)
         }
         _state.update { it.copy(isRunning = false) }
+        SessionStore.save(this, _state.value)
         stopSelfCleanup()
     }
 
@@ -342,6 +360,57 @@ class MockLocationService : Service() {
             _state.update {
                 it.copy(headingActive = false, headingNorth = 0.0, headingEast = 0.0)
             }
+        }
+
+        // --- GPX playback (Slice 9/10). Cursor lives in state; the tick loop reads it live. ---
+
+        /** Load a route to play, resetting the cursor to its start. Does not start moving. */
+        fun setPlaybackRoute(points: List<GeoPt>, mode: PlaybackMode) {
+            _state.update {
+                it.copy(
+                    playback = it.playback.copy(
+                        points = points,
+                        mode = mode,
+                        segmentIndex = 0,
+                        segmentProgress = 0.0,
+                        forward = true,
+                    )
+                )
+            }
+        }
+
+        fun setPlaybackMode(mode: PlaybackMode) {
+            _state.update { it.copy(playback = it.playback.copy(mode = mode)) }
+        }
+
+        /** Tap-a-route-point: move the playback start to [index] (clamped), forward, from its start. */
+        fun setPlaybackStartIndex(index: Int) {
+            _state.update {
+                val last = (it.playback.points.size - 1).coerceAtLeast(0)
+                it.copy(
+                    playback = it.playback.copy(
+                        segmentIndex = index.coerceIn(0, last),
+                        segmentProgress = 0.0,
+                        forward = true,
+                    )
+                )
+            }
+        }
+
+        fun play() {
+            _state.update { it.copy(playback = it.playback.copy(active = true, paused = false)) }
+        }
+
+        fun pausePlayback() {
+            _state.update { it.copy(playback = it.playback.copy(paused = true)) }
+        }
+
+        fun resumePlayback() {
+            _state.update { it.copy(playback = it.playback.copy(active = true, paused = false)) }
+        }
+
+        fun stopPlayback() {
+            _state.update { it.copy(playback = it.playback.copy(active = false, paused = false)) }
         }
     }
 }

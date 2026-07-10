@@ -17,6 +17,8 @@ data class MockState(
     val headingActive: Boolean = false,
     val headingNorth: Double = 0.0,
     val headingEast: Double = 0.0,
+    /** GPX playback session (route + cursor + mode). Empty route = nothing to play. */
+    val playback: Playback = Playback(),
     /** Non-null when the last command failed (e.g. app not selected as mock app). */
     val error: String? = null,
 ) {
