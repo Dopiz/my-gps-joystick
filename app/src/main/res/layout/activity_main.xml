@@ -199,6 +199,14 @@
                     android:layout_marginTop="12dp"
                     android:text="@string/start_mock" />
 
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRecenterReal"
+                    style="@style/Widget.GpsJoystick.Button.Outlined"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/return_real" />
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

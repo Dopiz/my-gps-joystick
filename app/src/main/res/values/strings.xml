@@ -9,8 +9,11 @@
     <string name="start">Start</string>
     <string name="stop">Stop</string>
     <string name="start_mock">開始模擬</string>
+    <string name="stop_mock">停止模擬</string>
     <string name="return_real">回到真實定位</string>
     <string name="mock_toggle_active">模擬中 · 點擊回到真實定位</string>
+    <string name="paste_coord">貼上座標</string>
+    <string name="clipboard_empty">剪貼簿沒有文字</string>
     <string name="speed_label">Speed</string>
     <string name="direction_label">Direction</string>
     <string name="dir_n">N</string>

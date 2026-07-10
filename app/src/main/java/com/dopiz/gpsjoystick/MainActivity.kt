@@ -46,13 +46,18 @@ class MainActivity : AppCompatActivity() {
             startActivity(PermissionChecker.overlaySettingsIntent(this))
         }
 
-        // One stateful button: 開始模擬 (orange, real GPS) ↔ 模擬中·回到真實定位 (green, mocking).
+        // Button 1: 模擬開/關 toggle — 開始模擬 (orange, real GPS) ↔ 停止模擬 (green, mocking).
         binding.btnMockToggle.setOnClickListener {
             if (MockLocationService.state.value.isRunning) {
                 MockLocationService.stop(this)
             } else {
                 startMock()
             }
+        }
+        // Button 2: 回到真實定位 — re-seed the injected position to the device's REAL location
+        // WITHOUT stopping the mock. Enabled only while mocking is running.
+        binding.btnRecenterReal.setOnClickListener {
+            MockLocationService.recenterToReal(this)
         }
 
         binding.btnToggleOverlay.setOnClickListener { toggleOverlay() }
@@ -112,14 +117,16 @@ class MainActivity : AppCompatActivity() {
         } else {
             binding.errorText.visibility = View.GONE
         }
-        // The single toggle reflects the live mock state: orange 開始模擬 on real GPS,
-        // green 模擬中·回到真實定位 while mocking, so the user can tell at a glance.
+        // Button 1 reflects the live mock state: orange 開始模擬 on real GPS,
+        // green 停止模擬 while mocking, so the user can tell at a glance.
         val activeColor = if (s.isRunning) R.color.status_active else R.color.brand_tertiary
         binding.btnMockToggle.backgroundTintList =
             ColorStateList.valueOf(getColor(activeColor))
         binding.btnMockToggle.setText(
-            if (s.isRunning) R.string.mock_toggle_active else R.string.start_mock
+            if (s.isRunning) R.string.stop_mock else R.string.start_mock
         )
+        // Button 2 (回到真實定位) only makes sense while mocking; disable + dim otherwise.
+        binding.btnRecenterReal.isEnabled = s.isRunning
         renderPermissions(s)
     }
 
