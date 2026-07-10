@@ -146,10 +146,11 @@ class OverlayService : Service() {
         val cxScreen = params.x + hubInWinX
         val cyScreen = params.y + hubInWinY
 
-        // Grow the column toward the screen centre vertically and the speed row toward it
-        // horizontally, so neither the column nor the 走/跑/車 row runs off the nearest edge.
-        vDir = if (cyScreen < dm.heightPixels / 2f) 1 else -1
-        hDir = if (cxScreen < dm.widthPixels / 2f) 1 else -1
+        // Optimise for the common top-left placement: default the column DOWN and the speed row
+        // RIGHT (toward the screen centre). Only flip when that direction would run off the edge
+        // and the opposite direction actually has room — clamp stays the final safety net.
+        vDir = if (cyScreen + view.vReachPx > dm.heightPixels && cyScreen - view.vReachPx >= 0) -1 else 1
+        hDir = if (cxScreen + view.hReachPx > dm.widthPixels && cxScreen - view.hReachPx >= 0) -1 else 1
 
         val hubOffX = view.hubOffsetX(hDir)
         val hubOffY = view.hubOffsetY(vDir)

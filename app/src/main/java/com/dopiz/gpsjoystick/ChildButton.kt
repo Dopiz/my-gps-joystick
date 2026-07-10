@@ -5,7 +5,10 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.drawable.Drawable
 import android.view.View
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.PathParser
 import kotlin.math.min
 
 /**
@@ -23,7 +26,7 @@ class ChildButton(
     private val label: String? = null,
 ) : View(context) {
 
-    enum class Glyph { HUB, JOYSTICK, PLAY, PAUSE, SPEED, TEXT }
+    enum class Glyph { HUB, JOYSTICK, PLAY, PAUSE, SPEED, TEXT, WALK, RUN, CAR }
 
     /** Green ring highlight (e.g. joystick visible, current speed bucket). */
     var active: Boolean = false
@@ -31,6 +34,17 @@ class ChildButton(
             field = value
             invalidate()
         }
+
+    /** For the HUB: collapsed shows the app icon, expanded shows the ✕ close glyph. */
+    var hubExpanded: Boolean = false
+        set(value) {
+            field = value
+            invalidate()
+        }
+
+    /** The launcher (adaptive) icon rendered inside the collapsed hub, clipped to the circle. */
+    private val appIcon: Drawable? =
+        if (glyph == Glyph.HUB) ContextCompat.getDrawable(context, R.mipmap.ic_launcher) else null
 
     private val surfaceVariant = 0xFF1B242E.toInt() // surface_variant #1B242E, fully opaque
     private val outline = 0xFF2A3542.toInt()       // outline #2A3542
@@ -58,6 +72,14 @@ class ChildButton(
     private val path = Path()
     private val rect = RectF()
 
+    // Material-style single-path icons (24dp viewport) for the speed row, parsed once.
+    private val iconPath: Path? = when (glyph) {
+        Glyph.WALK -> PathParser.createPathFromPathData(WALK_PATH)
+        Glyph.RUN -> PathParser.createPathFromPathData(RUN_PATH)
+        Glyph.CAR -> PathParser.createPathFromPathData(CAR_PATH)
+        else -> null
+    }
+
     init {
         isClickable = true
         // Software layer so the disc drop shadow renders reliably across API levels.
@@ -84,6 +106,7 @@ class ChildButton(
         val r = min(w, h) / 2f - stroke - shadowR
 
         val isHub = glyph == Glyph.HUB
+        val collapsedHub = isHub && !hubExpanded
         // Solid opaque disc: primary for the hub, green when active, surface-variant otherwise.
         fillPaint.color = when {
             isHub -> primary
@@ -94,6 +117,20 @@ class ChildButton(
         canvas.drawCircle(cx, cy, r, fillPaint)
         fillPaint.clearShadowLayer()
 
+        // Collapsed hub: render the app launcher icon, clipped to the circle so it reads as a
+        // round app icon filling the disc. Oversize slightly so the foreground glyph reaches the rim.
+        if (collapsedHub && appIcon != null) {
+            val save = canvas.save()
+            path.reset()
+            path.addCircle(cx, cy, r, Path.Direction.CW)
+            canvas.clipPath(path)
+            val half = r * 1.55f
+            appIcon.setBounds((cx - half).toInt(), (cy - half).toInt(),
+                (cx + half).toInt(), (cy + half).toInt())
+            appIcon.draw(canvas)
+            canvas.restoreToCount(save)
+        }
+
         ringPaint.color = when {
             isHub -> 0x66FFFFFF
             active -> outlineActive
@@ -102,12 +139,14 @@ class ChildButton(
         ringPaint.strokeWidth = stroke
         canvas.drawCircle(cx, cy, r, ringPaint)
 
-        // Glyph/text: white on the coloured (hub / active) discs, on-surface on plain discs.
-        val gcol = if (isHub || active) white else onSurface
-        glyphStroke.color = gcol
-        glyphFill.color = gcol
-        textPaint.color = gcol
-        drawGlyph(canvas, cx, cy, r)
+        if (!collapsedHub) {
+            // Glyph/text: white on the coloured (hub / active) discs, on-surface on plain discs.
+            val gcol = if (isHub || active) white else onSurface
+            glyphStroke.color = gcol
+            glyphFill.color = gcol
+            textPaint.color = gcol
+            drawGlyph(canvas, cx, cy, r)
+        }
     }
 
     private fun drawGlyph(canvas: Canvas, cx: Float, cy: Float, r: Float) {
@@ -151,11 +190,41 @@ class ChildButton(
                 canvas.drawLine(cx, cy, cx + u * 0.62f, cy - u * 0.62f, glyphStroke)
                 canvas.drawCircle(cx, cy, u * 0.14f, glyphFill)
             }
+            Glyph.WALK, Glyph.RUN, Glyph.CAR -> drawIcon(canvas, cx, cy, r)
             Glyph.TEXT -> {
                 textPaint.textSize = r * 1.05f
                 val fm = textPaint.fontMetrics
                 canvas.drawText(label ?: "", cx, cy - (fm.ascent + fm.descent) / 2f, textPaint)
             }
         }
+    }
+
+    /** Draw a 24dp-viewport [iconPath] as a solid fill, scaled to fit and centred in the disc. */
+    private fun drawIcon(canvas: Canvas, cx: Float, cy: Float, r: Float) {
+        val icon = iconPath ?: return
+        val box = r * 1.5f            // icon bounding box side within the disc
+        val scale = box / 24f
+        canvas.save()
+        canvas.translate(cx - box / 2f, cy - box / 2f)
+        canvas.scale(scale, scale)
+        canvas.drawPath(icon, glyphFill)
+        canvas.restore()
+    }
+
+    private companion object {
+        // Material Symbols icon geometry (Apache-2.0), single filled path, 24x24 viewport.
+        const val WALK_PATH =
+            "M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 " +
+            "2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1" +
+            "-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"
+        const val RUN_PATH =
+            "M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7." +
+            "5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-" +
+            "1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"
+        const val CAR_PATH =
+            "M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 " +
+            "1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c" +
+            "-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-" +
+            ".67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"
     }
 }

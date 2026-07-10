@@ -37,6 +37,11 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     private val vFarExtentPx: Float = firstOffsetPx + 2 * stepPx + childPx / 2f + marginPx
     private val hFarExtentPx: Float = 3 * stepPx + childPx / 2f + marginPx
 
+    /** How far the column reaches past the hub centre (down or up). */
+    val vReachPx: Float get() = vFarExtentPx
+    /** How far the speed row reaches past the hub centre (right or left). */
+    val hReachPx: Float get() = hFarExtentPx
+
     /** Expanded window is a rectangle: tall enough for the vertical column of 3 children... */
     val expandedW: Int = (nearExtentPx + hFarExtentPx).toInt()
     /** ...and wide enough for the horizontal 走/跑/車 row off the speed child. */
@@ -67,9 +72,9 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     // fans further out without colliding with the others.
     private val mains = listOf(btnJoystick, btnPause, btnSpeed)
 
-    private val subWalk = ChildButton(context, ChildButton.Glyph.TEXT, "走")
-    private val subRun = ChildButton(context, ChildButton.Glyph.TEXT, "跑")
-    private val subCar = ChildButton(context, ChildButton.Glyph.TEXT, "車")
+    private val subWalk = ChildButton(context, ChildButton.Glyph.WALK)
+    private val subRun = ChildButton(context, ChildButton.Glyph.RUN)
+    private val subCar = ChildButton(context, ChildButton.Glyph.CAR)
     private val subs = listOf(subWalk, subRun, subCar)
 
     private var hubCX = hubPx / 2f
@@ -188,6 +193,7 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     fun expand() {
         expanded = true
         speedOpen = false
+        hub.hubExpanded = true            // swap app icon -> "+" so the 45° spin reads as ✕
         hub.animate().rotation(45f).setDuration(DUR).start()
         layoutFan(animate = true)
     }
@@ -203,7 +209,9 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
         if (!expanded) return
         expanded = false
         speedOpen = false
-        hub.animate().rotation(0f).setDuration(DUR).start()
+        hub.animate().rotation(0f).setDuration(DUR)
+            .withEndAction { hub.hubExpanded = false }   // restore the app icon once un-rotated
+            .start()
         (mains + subs).forEach { hideChild(it) }
         // Shrink the window only after the children have animated back under the hub.
         postDelayed({ if (!expanded) onRequestCollapse() }, DUR + STAGGER * mains.size)
