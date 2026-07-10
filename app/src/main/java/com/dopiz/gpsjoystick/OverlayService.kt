@@ -8,13 +8,17 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.TextView
 import android.widget.Toast
 
 /**
@@ -62,23 +66,67 @@ class OverlayService : Service() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
         val params = baseLayoutParams()
+        val container = FrameLayout(this)
+
+        var locked = false
         val joystick = JoystickView(this).apply {
             listener = object : JoystickView.Listener {
                 override fun onMove(north: Double, east: Double, magnitude: Double) {
                     MockLocationService.setJoystick(north, east, magnitude)
                 }
                 override fun onRelease() {
-                    MockLocationService.clearJoystick()
+                    // Feature 2: when locked, do NOT clear — keep marching in the last heading
+                    // at the current (shared SpeedModel) speed until the user unlocks.
+                    if (!locked) MockLocationService.clearJoystick()
                 }
             }
             onDragWindow = { dx, dy ->
                 params.x += dx.toInt()
                 params.y += dy.toInt()
-                runCatching { windowManager.updateViewLayout(this, params) }
+                runCatching { windowManager.updateViewLayout(container, params) }
             }
         }
-        overlayView = joystick
-        windowManager.addView(joystick, params)
+        container.addView(
+            joystick,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
+
+        val lockPx = (resources.displayMetrics.density * 48).toInt()
+        val lockBtn = TextView(this).apply {
+            text = LOCK_GLYPH_OFF
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            textSize = 18f
+            background = lockButtonBg(false)
+        }
+        fun applyLockUi() {
+            joystick.locked = locked
+            lockBtn.text = if (locked) LOCK_GLYPH_ON else LOCK_GLYPH_OFF
+            lockBtn.background = lockButtonBg(locked)
+        }
+        lockBtn.setOnClickListener {
+            locked = !locked
+            applyLockUi()
+            // Unlocking is a deliberate stop.
+            if (!locked) MockLocationService.clearJoystick()
+        }
+        container.addView(
+            lockBtn,
+            FrameLayout.LayoutParams(lockPx, lockPx, Gravity.TOP or Gravity.END),
+        )
+
+        overlayView = container
+        windowManager.addView(container, params)
+    }
+
+    private fun lockButtonBg(locked: Boolean): GradientDrawable = GradientDrawable().apply {
+        shape = GradientDrawable.OVAL
+        // status_active green when locked, surface_variant when idle.
+        setColor(if (locked) Color.argb(255, 34, 197, 94) else Color.argb(230, 27, 36, 46))
+        setStroke((resources.displayMetrics.density * 1.5f).toInt(), Color.argb(255, 42, 53, 66))
     }
 
     private fun baseLayoutParams(): WindowManager.LayoutParams {
@@ -180,6 +228,8 @@ class OverlayService : Service() {
 
         private const val CHANNEL_ID = "overlay_joystick"
         private const val NOTIFICATION_ID = 1002
+        private const val LOCK_GLYPH_ON = "🔒"   // 🔒
+        private const val LOCK_GLYPH_OFF = "🔓"  // 🔓
 
         fun show(context: Context) {
             context.startService(

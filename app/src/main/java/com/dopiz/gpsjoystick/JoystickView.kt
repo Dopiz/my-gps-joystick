@@ -30,6 +30,16 @@ class JoystickView(context: Context) : View(context) {
     /** Called with the incremental raw-screen delta while dragging the window body. */
     var onDragWindow: ((dxRaw: Float, dyRaw: Float) -> Unit)? = null
 
+    /**
+     * Feature 2: hands-free direction lock. When true the knob stays where it was released
+     * (showing the marching heading) and is drawn in the active/green colour.
+     */
+    var locked: Boolean = false
+        set(value) {
+            field = value
+            invalidate()
+        }
+
     // Semi-opaque dark backing so the joystick stays legible over any wallpaper/app behind it.
     private val backingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.argb(210, 19, 26, 34) // surface #131A22
@@ -61,6 +71,15 @@ class JoystickView(context: Context) : View(context) {
         strokeWidth = 3f
         color = Color.argb(255, 219, 234, 254) // on-primary-container #DBEAFE
     }
+    // Locked (hands-free auto-march) knob + ring in status_active green.
+    private val knobLockedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(255, 34, 197, 94) // status_active #22C55E
+    }
+    private val lockedRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 5f
+        color = Color.argb(255, 34, 197, 94) // status_active #22C55E
+    }
 
     private var cx = 0f
     private var cy = 0f
@@ -86,13 +105,18 @@ class JoystickView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         canvas.drawCircle(cx, cy, baseRadius, backingPaint)
         canvas.drawCircle(cx, cy, baseRadius, basePaint)
-        canvas.drawCircle(cx, cy, baseRadius, baseStroke)
+        canvas.drawCircle(cx, cy, baseRadius, if (locked) lockedRingPaint else baseStroke)
         canvas.drawCircle(knobX, knobY, knobRadius * 1.35f, glowPaint)
-        if (draggingKnob) {
-            canvas.drawCircle(knobX, knobY, knobRadius, knobPressedPaint)
-            canvas.drawCircle(knobX, knobY, knobRadius, knobRingPaint)
-        } else {
-            canvas.drawCircle(knobX, knobY, knobRadius, knobPaint)
+        when {
+            locked -> {
+                canvas.drawCircle(knobX, knobY, knobRadius, knobLockedPaint)
+                canvas.drawCircle(knobX, knobY, knobRadius, lockedRingPaint)
+            }
+            draggingKnob -> {
+                canvas.drawCircle(knobX, knobY, knobRadius, knobPressedPaint)
+                canvas.drawCircle(knobX, knobY, knobRadius, knobRingPaint)
+            }
+            else -> canvas.drawCircle(knobX, knobY, knobRadius, knobPaint)
         }
     }
 
@@ -123,7 +147,8 @@ class JoystickView(context: Context) : View(context) {
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 if (draggingKnob) {
                     draggingKnob = false
-                    recenter()
+                    // When locked, keep the knob deflected to show the marching heading.
+                    if (!locked) recenter()
                     listener?.onRelease()
                 }
                 movingWindow = false
