@@ -80,6 +80,26 @@
     <string name="dialog_cancel">取消</string>
     <string name="pin_dropped">已在 %1$s, %2$s 放置圖釘並瞬移</string>
 
+    <!-- Batch 2: GPX library -->
+    <string name="open_gpx_library">GPX</string>
+    <string name="gpx_library_title">GPX 管理</string>
+    <string name="gpx_manage">GPX 管理</string>
+    <string name="gpx_import">匯入</string>
+    <string name="gpx_export">匯出</string>
+    <string name="gpx_rename">重新命名</string>
+    <string name="gpx_delete">刪除</string>
+    <string name="gpx_choose">選用</string>
+    <string name="gpx_lib_empty">尚無已存 GPX，按「匯入」加入 .gpx 檔</string>
+    <string name="gpx_meta">%1$d 點 · %2$s</string>
+    <string name="gpx_imported">已匯入「%1$s」（%2$d 點）</string>
+    <string name="gpx_import_failed">匯入失敗：%1$s</string>
+    <string name="gpx_rename_title">重新命名 GPX</string>
+    <string name="gpx_delete_confirm">確定刪除「%1$s」？</string>
+    <string name="gpx_deleted">已刪除「%1$s」</string>
+    <string name="gpx_export_ok">已匯出「%1$s」</string>
+    <string name="gpx_export_failed">匯出失敗</string>
+    <string name="gpx_menu">更多操作</string>
+
     <!-- Onboarding (Slice 11) -->
     <string name="onboarding_title">首次設定（3 步）</string>
     <string name="onboarding_step1">授予定位權限</string>
