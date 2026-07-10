@@ -13,8 +13,9 @@ import kotlin.math.min
 /**
  * A virtual joystick drawn inside the floating overlay. The knob's deflection reports a unit
  * heading vector (screen-up = north) plus a magnitude 0..1 to [Listener]; the [OverlayService]
- * forwards that to [MockLocationService.setJoystick], so joystick angle → move direction and
- * deflection → speed (via the shared [SpeedModel]). Releasing recenters and stops.
+ * forwards that to [MockLocationService.setJoystick]. The stick sets DIRECTION ONLY — the move
+ * speed is always the shared [SpeedModel] value, never scaled by deflection; the magnitude only
+ * feeds the dead-zone (tiny deflection = stop). Releasing recenters and stops.
  *
  * The view reserves a grip strip along its top edge (any height by which the view is taller than
  * it is wide). A touch that starts on that strip — or outside the base circle — is treated as a
