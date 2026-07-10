@@ -8,9 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
@@ -18,7 +16,6 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.TextView
 import android.widget.Toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -59,6 +56,7 @@ class OverlayService : Service() {
 
     // --- Joystick window state ---
     private var joystickView: View? = null
+    private var joystickInner: JoystickView? = null
     private var joystickParams: WindowManager.LayoutParams? = null
     private var joystickLocked = false
 
@@ -99,16 +97,30 @@ class OverlayService : Service() {
         hubInWinX = view.hubPx / 2f
         hubInWinY = view.hubPx / 2f
 
+        // Feature 6: restore the hub to its last CENTRE position (else default top-left).
+        val dm = resources.displayMetrics
+        val savedHub = SessionStore.loadHubPos(this)
         val params = baseParams(view.hubPx, view.hubPx).apply {
-            x = (density * 20).toInt()
-            y = (density * 160).toInt()
+            if (savedHub != null) {
+                x = clampInt(savedHub.first - view.hubPx / 2, 0, dm.widthPixels - view.hubPx)
+                y = clampInt(savedHub.second - view.hubPx / 2, 0, dm.heightPixels - view.hubPx)
+            } else {
+                x = (density * 20).toInt()
+                y = (density * 160).toInt()
+            }
         }
         hubParams = params
 
+        // Feature 3/6: restore the joystick lock state before any joystick is shown.
+        joystickLocked = SessionStore.loadLock(this)
+
         view.onHubDrag = { dx, dy -> moveHub(dx, dy) }
+        view.onDragEnd = { saveHubPos() }
         view.onRequestExpand = { expandHub() }
         view.onRequestCollapse = { collapseHub() }
         view.onToggleJoystick = { toggleJoystick() }
+        view.onToggleLock = { toggleLock() }
+        view.onOpenMap = { openMap() }
         view.onTogglePause = {
             MockLocationService.setMovementPaused(!MockLocationService.state.value.movementPaused)
         }
@@ -117,9 +129,41 @@ class OverlayService : Service() {
         windowManager.addView(view, params)
         view.configure(hubInWinX, hubInWinY, vDir, hDir)
 
+        // Feature 1: apply the persisted speed on startup so the app opens at the last speed
+        // (shared SpeedModel → the map reflects it too). Don't clobber a live running session.
+        if (!MockLocationService.state.value.isRunning) {
+            val chip = SessionStore.loadSpeedChip(this)
+            if (chip in PRESET_KMH.indices) MockLocationService.setSpeed(PRESET_KMH[chip] / 3.6)
+        }
+
         // Reflect current state immediately + keep it live.
         applyState()
         startObserving()
+
+        // Feature 6: re-show the joystick if it was visible last time.
+        if (SessionStore.loadJoystickVisible(this)) showJoystick()
+    }
+
+    private fun saveHubPos() {
+        val params = hubParams ?: return
+        SessionStore.saveHubPos(this, (params.x + hubInWinX).toInt(), (params.y + hubInWinY).toInt())
+    }
+
+    private fun openMap() {
+        runCatching {
+            startActivity(
+                Intent(this, MapActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
+
+    private fun toggleLock() {
+        joystickLocked = !joystickLocked
+        joystickInner?.locked = joystickLocked
+        SessionStore.saveLock(this, joystickLocked)
+        // Unlocking must not keep marching a held heading.
+        if (!joystickLocked) MockLocationService.clearJoystick()
+        applyState()
     }
 
     private fun moveHub(dx: Float, dy: Float) {
@@ -188,6 +232,7 @@ class OverlayService : Service() {
         hubInWinY = view.hubPx / 2f
         runCatching { windowManager.updateViewLayout(view, params) }
         view.configure(hubInWinX, hubInWinY, vDir, hDir)
+        saveHubPos()
     }
 
     /** Top-left so a window of [size] fits within [extent]; centres it if it can't fit. */
@@ -214,6 +259,7 @@ class OverlayService : Service() {
         view.setJoystickVisible(joystickView != null)
         view.setPaused(s.movementPaused)
         view.setActiveSpeed(bucketOf(s.speedMps))
+        view.setLockActive(joystickLocked)
     }
 
     /** Map a speed (m/s) to a preset bucket index (0 走 / 1 跑 / 2 車), or -1 if fine-tuned. */
@@ -241,12 +287,14 @@ class OverlayService : Service() {
     }
 
     private fun showJoystick() {
+        // Feature 6: restore the joystick window to its last top-left (else default).
+        val savedJoy = SessionStore.loadJoystickPos(this)
         val params = baseParams(
             (density * 96).toInt(),
             (density * 96).toInt() + (density * 24).toInt(),
         ).apply {
-            x = (density * 40).toInt()
-            y = (density * 320).toInt()
+            x = savedJoy?.first ?: (density * 40).toInt()
+            y = savedJoy?.second ?: (density * 320).toInt()
         }
         joystickParams = params
         val container = FrameLayout(this)
@@ -265,6 +313,7 @@ class OverlayService : Service() {
                 params.x += dx.toInt()
                 params.y += dy.toInt()
                 runCatching { windowManager.updateViewLayout(container, params) }
+                SessionStore.saveJoystickPos(this@OverlayService, params.x, params.y)
             }
         }
         container.addView(
@@ -275,42 +324,20 @@ class OverlayService : Service() {
             ),
         )
 
-        val lockPx = (density * 40).toInt()
-        val lockBtn = TextView(this).apply {
-            text = if (joystickLocked) LOCK_GLYPH_ON else LOCK_GLYPH_OFF
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            textSize = 18f
-            background = lockButtonBg(joystickLocked)
-        }
-        lockBtn.setOnClickListener {
-            joystickLocked = !joystickLocked
-            joystick.locked = joystickLocked
-            lockBtn.text = if (joystickLocked) LOCK_GLYPH_ON else LOCK_GLYPH_OFF
-            lockBtn.background = lockButtonBg(joystickLocked)
-            if (!joystickLocked) MockLocationService.clearJoystick()
-        }
-        container.addView(
-            lockBtn,
-            FrameLayout.LayoutParams(lockPx, lockPx, Gravity.TOP or Gravity.END),
-        )
-
+        joystickInner = joystick
         joystickView = container
         windowManager.addView(container, params)
+        SessionStore.saveJoystickVisible(this, true)
     }
 
     private fun removeJoystick() {
         joystickView?.let { runCatching { windowManager.removeView(it) } }
         joystickView = null
+        joystickInner = null
         joystickParams = null
+        SessionStore.saveJoystickVisible(this, false)
         // Leaving the joystick must not keep marching a locked heading.
         if (!joystickLocked) MockLocationService.clearJoystick()
-    }
-
-    private fun lockButtonBg(locked: Boolean): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.OVAL
-        setColor(if (locked) Color.argb(255, 34, 197, 94) else Color.argb(230, 27, 36, 46))
-        setStroke((density * 1.5f).toInt(), Color.argb(255, 42, 53, 66))
     }
 
     // ---------------------------------------------------------------------------------------
@@ -407,8 +434,6 @@ class OverlayService : Service() {
 
         private const val CHANNEL_ID = "overlay_joystick"
         private const val NOTIFICATION_ID = 1002
-        private const val LOCK_GLYPH_ON = "🔒"
-        private const val LOCK_GLYPH_OFF = "🔓"
 
         /** Speed presets in km/h, in sub-ring order 走 / 跑 / 車 — matches MapActivity chips. */
         private val PRESET_KMH = listOf(5.0, 15.0, 40.0)

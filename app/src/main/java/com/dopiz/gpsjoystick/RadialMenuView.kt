@@ -32,9 +32,15 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     private val firstOffsetPx: Float = hubPx / 2f + childPx / 2f + gapPx
     private val marginPx: Float = dp(16f)            // shadow + breathing room at the far edge
 
+    // Number of children in the vertical column (地圖 / 搖桿 / 鎖定 / ⏸ / 速度) and the index of
+    // the 速度 (speed) child, off which the horizontal 走/跑/車 sub-row fans.
+    private val columnCount = 5
+    private val speedIndex = columnCount - 1
+
     // Extents from the hub centre used to size the (non-square) expanded window.
     private val nearExtentPx: Float = hubPx / 2f + marginPx
-    private val vFarExtentPx: Float = firstOffsetPx + 2 * stepPx + childPx / 2f + marginPx
+    private val vFarExtentPx: Float =
+        firstOffsetPx + (columnCount - 1) * stepPx + childPx / 2f + marginPx
     private val hFarExtentPx: Float = 3 * stepPx + childPx / 2f + marginPx
 
     /** How far the column reaches past the hub centre (down or up). */
@@ -59,18 +65,22 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     var onToggleJoystick: () -> Unit = {}
     var onTogglePause: () -> Unit = {}
     var onSetSpeed: (idx: Int) -> Unit = {}
+    var onOpenMap: () -> Unit = {}
+    var onToggleLock: () -> Unit = {}
 
     var expanded: Boolean = false
         private set
     private var speedOpen = false
 
     private val hub = ChildButton(context, ChildButton.Glyph.HUB)
+    private val btnMap = ChildButton(context, ChildButton.Glyph.MAP)
     private val btnJoystick = ChildButton(context, ChildButton.Glyph.JOYSTICK)
+    private val btnLock = ChildButton(context, ChildButton.Glyph.LOCK_OPEN)
     private val btnPause = ChildButton(context, ChildButton.Glyph.PAUSE)
     private val btnSpeed = ChildButton(context, ChildButton.Glyph.SPEED)
-    // Main ring order: joystick, pause, speed. Speed sits at the outer end so its sub-ring
-    // fans further out without colliding with the others.
-    private val mains = listOf(btnJoystick, btnPause, btnSpeed)
+    // Vertical column order top→bottom: 地圖 / 搖桿 / 鎖定 / ⏸暫停 / 速度. Speed sits at the outer
+    // end so its 走/跑/車 sub-row fans further out without colliding with the others.
+    private val mains = listOf(btnMap, btnJoystick, btnLock, btnPause, btnSpeed)
 
     private val subWalk = ChildButton(context, ChildButton.Glyph.WALK)
     private val subRun = ChildButton(context, ChildButton.Glyph.RUN)
@@ -133,7 +143,9 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
         addChild(hub, hubPx)
         (subs + mains).forEach { it.visibility = View.GONE }
 
+        btnMap.setOnClickListener { onOpenMap() }
         btnJoystick.setOnClickListener { onToggleJoystick() }
+        btnLock.setOnClickListener { onToggleLock() }
         btnPause.setOnClickListener { onTogglePause() }
         btnSpeed.setOnClickListener { toggleSpeedRing() }
         subWalk.setOnClickListener { onSetSpeed(0) }
@@ -159,6 +171,22 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     fun setActiveSpeed(idx: Int) {
         subs.forEachIndexed { i, b -> b.active = i == idx }
         btnSpeed.active = idx in subs.indices
+        // The 速度 parent shows the current bucket's icon (walk/run/car), or the speedometer
+        // when the speed is a custom slider value that matches no bucket.
+        btnSpeed.glyph = when (idx) {
+            0 -> ChildButton.Glyph.WALK
+            1 -> ChildButton.Glyph.RUN
+            2 -> ChildButton.Glyph.CAR
+            else -> ChildButton.Glyph.SPEED
+        }
+        btnSpeed.invalidate()
+    }
+
+    /** Reflect the joystick hands-free lock state: locked = green disc + closed padlock. */
+    fun setLockActive(locked: Boolean) {
+        btnLock.active = locked
+        btnLock.glyph = if (locked) ChildButton.Glyph.LOCK else ChildButton.Glyph.LOCK_OPEN
+        btnLock.invalidate()
     }
 
     // --- Geometry / positioning ---
@@ -183,7 +211,7 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
 
     // Speed sub-menu: a HORIZONTAL row from the speed child (main index 2), growing in [hDir]
     // toward the screen centre so 走/跑/車 stay on-screen.
-    private val speedY: Float get() = hubCY + vDir * (firstOffsetPx + 2 * stepPx)
+    private val speedY: Float get() = hubCY + vDir * (firstOffsetPx + speedIndex * stepPx)
     private fun subX(j: Int): Float = hubCX + hDir * stepPx * (j + 1)
     private fun subY(@Suppress("UNUSED_PARAMETER") j: Int): Float = speedY
 

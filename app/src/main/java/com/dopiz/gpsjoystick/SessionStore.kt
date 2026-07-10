@@ -77,6 +77,57 @@ object SessionStore {
     fun loadSpeedChip(context: Context): Int =
         context.getSharedPreferences(PREFS_UI, Context.MODE_PRIVATE).getInt(K_SPEED_CHIP, -1)
 
+    // --- Feature 6: persisted overlay settings (lock + window positions + joystick visibility) ---
+    private const val K_LOCK = "joy_lock"
+    private const val K_JOY_VISIBLE = "joy_visible"
+    private const val K_HUB_X = "hub_x"
+    private const val K_HUB_Y = "hub_y"
+    private const val K_JOY_X = "joy_x"
+    private const val K_JOY_Y = "joy_y"
+    private const val UNSET = Int.MIN_VALUE
+
+    private fun ui(context: Context) =
+        context.getSharedPreferences(PREFS_UI, Context.MODE_PRIVATE)
+
+    fun saveLock(context: Context, locked: Boolean) {
+        ui(context).edit().putBoolean(K_LOCK, locked).apply()
+    }
+
+    fun loadLock(context: Context): Boolean = ui(context).getBoolean(K_LOCK, false)
+
+    fun saveJoystickVisible(context: Context, visible: Boolean) {
+        ui(context).edit().putBoolean(K_JOY_VISIBLE, visible).apply()
+    }
+
+    fun loadJoystickVisible(context: Context): Boolean =
+        ui(context).getBoolean(K_JOY_VISIBLE, false)
+
+    /** Persist the hub CENTRE position (screen px). */
+    fun saveHubPos(context: Context, cx: Int, cy: Int) {
+        ui(context).edit().putInt(K_HUB_X, cx).putInt(K_HUB_Y, cy).apply()
+    }
+
+    /** @return (centreX, centreY) in screen px, or null if never saved. */
+    fun loadHubPos(context: Context): Pair<Int, Int>? {
+        val p = ui(context)
+        val x = p.getInt(K_HUB_X, UNSET)
+        val y = p.getInt(K_HUB_Y, UNSET)
+        return if (x == UNSET || y == UNSET) null else x to y
+    }
+
+    /** Persist the joystick window TOP-LEFT position (screen px). */
+    fun saveJoystickPos(context: Context, x: Int, y: Int) {
+        ui(context).edit().putInt(K_JOY_X, x).putInt(K_JOY_Y, y).apply()
+    }
+
+    /** @return (x, y) top-left in screen px, or null if never saved. */
+    fun loadJoystickPos(context: Context): Pair<Int, Int>? {
+        val p = ui(context)
+        val x = p.getInt(K_JOY_X, UNSET)
+        val y = p.getInt(K_JOY_Y, UNSET)
+        return if (x == UNSET || y == UNSET) null else x to y
+    }
+
     private fun encodeRoute(points: List<GeoPt>): String =
         points.joinToString(";") { "${it.lat},${it.lng}" }
 
