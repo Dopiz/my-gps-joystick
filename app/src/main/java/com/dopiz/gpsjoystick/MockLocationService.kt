@@ -595,5 +595,23 @@ class MockLocationService : Service() {
         fun stopPlayback() {
             _state.update { it.copy(playback = it.playback.copy(active = false, paused = false)) }
         }
+
+        /**
+         * 停止/歸零: stop playback AND rewind the cursor to the route start (point 0, forward), so
+         * the next 開始 begins from the GPX's first point rather than the paused position.
+         */
+        fun resetPlayback() {
+            _state.update {
+                it.copy(
+                    playback = it.playback.copy(
+                        active = false,
+                        paused = false,
+                        segmentIndex = 0,
+                        segmentProgress = 0.0,
+                        forward = true,
+                    )
+                )
+            }
+        }
     }
 }
