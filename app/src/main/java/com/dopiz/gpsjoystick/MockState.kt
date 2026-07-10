@@ -19,6 +19,19 @@ data class MockState(
     val headingEast: Double = 0.0,
     /** GPX playback session (route + cursor + mode). Empty route = nothing to play. */
     val playback: Playback = Playback(),
+    /**
+     * Feature 4: smooth-glide teleport. When [glideActive] the tick loop eases the injected
+     * position from ([glideFromLat],[glideFromLng]) to ([glideToLat],[glideToLng]) over
+     * [glideDurationMs], starting at [glideStartMs] (SystemClock.elapsedRealtime). Transient —
+     * not persisted.
+     */
+    val glideActive: Boolean = false,
+    val glideFromLat: Double = 0.0,
+    val glideFromLng: Double = 0.0,
+    val glideToLat: Double = 0.0,
+    val glideToLng: Double = 0.0,
+    val glideStartMs: Long = 0L,
+    val glideDurationMs: Long = 0L,
     /** Non-null when the last command failed (e.g. app not selected as mock app). */
     val error: String? = null,
 ) {

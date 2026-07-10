@@ -63,13 +63,15 @@ class MockLocationService : Service() {
             ACTION_UPDATE -> {
                 val lat = intent.getDoubleExtra(EXTRA_LAT, _state.value.latitude)
                 val lng = intent.getDoubleExtra(EXTRA_LNG, _state.value.longitude)
+                val cur = _state.value
                 // Teleport is an explicit user action: it wins over any active playback.
-                _state.update {
-                    it.copy(
-                        latitude = lat,
-                        longitude = lng,
-                        playback = it.playback.copy(active = false, paused = false),
-                    )
+                _state.update { it.copy(playback = it.playback.copy(active = false, paused = false)) }
+                // Feature 4: ease to the target instead of a hard single-frame jump — but only
+                // while the tick loop is running to animate it; otherwise just set the position.
+                if (cur.isRunning) {
+                    startGlide(cur.latitude, cur.longitude, lat, lng)
+                } else {
+                    _state.update { it.copy(latitude = lat, longitude = lng) }
                 }
             }
             ACTION_STOP -> {
@@ -105,21 +107,62 @@ class MockLocationService : Service() {
         tickJob?.cancel()
         tickJob = scope.launch {
             var lastTick = SystemClock.elapsedRealtime()
+            var lastSave = 0L
+            // Frame at FRAME_MS (finer than 1s) so glide teleports and movement inject smoothly;
+            // motion math is dt-based so the trajectory is unchanged, just updated more often.
             while (isActive) {
                 val now = SystemClock.elapsedRealtime()
                 val dtSeconds = (now - lastTick) / 1000.0
                 lastTick = now
                 advancePosition(dtSeconds)
                 pushCurrentLocation()
-                SessionStore.save(this@MockLocationService, _state.value)
-                delay(TICK_MS)
+                if (now - lastSave >= SAVE_INTERVAL_MS) {
+                    SessionStore.save(this@MockLocationService, _state.value)
+                    lastSave = now
+                }
+                delay(FRAME_MS)
             }
+        }
+    }
+
+    /** Feature 4: begin a smooth-glide teleport from current to target. */
+    private fun startGlide(fromLat: Double, fromLng: Double, toLat: Double, toLng: Double) {
+        val dist = PlaybackEngine.segMeters(GeoPt(fromLat, fromLng), GeoPt(toLat, toLng))
+        val dur = (dist * GLIDE_MS_PER_M).toLong().coerceIn(GLIDE_MIN_MS, GLIDE_MAX_MS)
+        _state.update {
+            it.copy(
+                glideActive = true,
+                glideFromLat = fromLat, glideFromLng = fromLng,
+                glideToLat = toLat, glideToLng = toLng,
+                glideStartMs = SystemClock.elapsedRealtime(),
+                glideDurationMs = dur,
+            )
         }
     }
 
     /** Direction move engine step: shift the held position along the current heading. */
     private fun advancePosition(dtSeconds: Double) {
         val s = _state.value
+        // Feature 4: an active glide teleport owns the position until it eases to the target.
+        if (s.glideActive) {
+            val now = SystemClock.elapsedRealtime()
+            val dur = s.glideDurationMs.coerceAtLeast(1L)
+            val t = ((now - s.glideStartMs).toDouble() / dur).coerceIn(0.0, 1.0)
+            if (t >= 1.0) {
+                _state.update {
+                    it.copy(latitude = s.glideToLat, longitude = s.glideToLng, glideActive = false)
+                }
+            } else {
+                val e = t * t * (3 - 2 * t)  // smoothstep ease-in-out
+                _state.update {
+                    it.copy(
+                        latitude = s.glideFromLat + (s.glideToLat - s.glideFromLat) * e,
+                        longitude = s.glideFromLng + (s.glideToLng - s.glideFromLng) * e,
+                    )
+                }
+            }
+            return
+        }
         // GPX playback, when active, owns the position (different algorithm; only SpeedModel shared).
         if (s.playback.active && !s.playback.paused && s.playback.hasRoute) {
             val (pb, pos) = PlaybackEngine.step(s.playback, s.speedMps, dtSeconds)
@@ -317,7 +360,12 @@ class MockLocationService : Service() {
 
         private const val CHANNEL_ID = "mock_location"
         private const val NOTIFICATION_ID = 1001
-        private const val TICK_MS = 1000L
+        private const val FRAME_MS = 100L
+        private const val SAVE_INTERVAL_MS = 1000L
+        // Feature 4 glide pacing: ~4ms per meter, clamped to a short natural window.
+        private const val GLIDE_MS_PER_M = 4.0
+        private const val GLIDE_MIN_MS = 600L
+        private const val GLIDE_MAX_MS = 1200L
 
         private val _state = MutableStateFlow(MockState())
         val state: StateFlow<MockState> = _state.asStateFlow()
