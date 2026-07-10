@@ -32,9 +32,6 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        binding.inputLat.setText(MockState.DEFAULT_LAT.toString())
-        binding.inputLng.setText(MockState.DEFAULT_LNG.toString())
-
         binding.btnGrantLocation.setOnClickListener {
             if (PermissionChecker.isLocationGranted(this)) {
                 startActivity(PermissionChecker.appDetailsIntent(this))
@@ -87,13 +84,8 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "請先授予定位權限", Toast.LENGTH_LONG).show()
             return
         }
-        val lat = binding.inputLat.text.toString().toDoubleOrNull()
-        val lng = binding.inputLng.text.toString().toDoubleOrNull()
-        if (lat == null || lng == null) {
-            Toast.makeText(this, "經緯度格式錯誤", Toast.LENGTH_LONG).show()
-            return
-        }
-        MockLocationService.start(this, lat, lng)
+        // No manual coordinate: the service seeds from the current real location.
+        MockLocationService.startAtRealLocation(this)
     }
 
     private fun toggleOverlay() {
@@ -127,6 +119,10 @@ class MainActivity : AppCompatActivity() {
         } else {
             binding.errorText.visibility = View.GONE
         }
+        // One clear primary action per state: while mocking, only 回到真實定位 is active;
+        // while on real GPS, only 開始模擬 is active.
+        binding.btnStart.isEnabled = !s.isRunning
+        binding.btnStop.isEnabled = s.isRunning
         renderPermissions(s)
     }
 

@@ -50,8 +50,14 @@ class MockLocationService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                val lat = intent.getDoubleExtra(EXTRA_LAT, _state.value.latitude)
-                val lng = intent.getDoubleExtra(EXTRA_LNG, _state.value.longitude)
+                // Backward compatible: honour explicit lat/lng extras when present (e.g. GPX
+                // playback start); otherwise seed from the current REAL location.
+                val (lat, lng) = if (intent.hasExtra(EXTRA_LAT) && intent.hasExtra(EXTRA_LNG)) {
+                    intent.getDoubleExtra(EXTRA_LAT, _state.value.latitude) to
+                        intent.getDoubleExtra(EXTRA_LNG, _state.value.longitude)
+                } else {
+                    seedFromRealLocation()
+                }
                 // Explicit user Start of plain mock must win: discard any leftover/persisted
                 // playback session so it cannot hijack the coordinate the user just entered.
                 // GPX playback goes through EXTRA_PLAYBACK=true and keeps its live cursor.
@@ -93,6 +99,36 @@ class MockLocationService : Service() {
             }
         }
         return START_STICKY
+    }
+
+    /**
+     * Seed a plain-mock Start from the current real position: the last known real fix, else the
+     * last persisted session position, else a sane default. Requires location permission (the
+     * UI checks it before calling Start).
+     */
+    private fun seedFromRealLocation(): Pair<Double, Double> {
+        lastKnownReal()?.let { return it.latitude to it.longitude }
+        SessionStore.load(this)?.let { return it.latitude to it.longitude }
+        return MockState.DEFAULT_LAT to MockState.DEFAULT_LNG
+    }
+
+    private fun lastKnownReal(): Location? {
+        val providers = buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(LocationManager.FUSED_PROVIDER)
+            add(LocationManager.NETWORK_PROVIDER)
+            add(LocationManager.PASSIVE_PROVIDER)
+            // GPS last: after a prior session its last fix may still be our own injection.
+            add(LocationManager.GPS_PROVIDER)
+        }
+        return providers.firstNotNullOfOrNull { p ->
+            try {
+                locationManager.getLastKnownLocation(p)
+            } catch (e: SecurityException) {
+                null
+            } catch (e: IllegalArgumentException) {
+                null
+            }
+        }
     }
 
     private fun startInjecting(lat: Double, lng: Double) {
@@ -380,6 +416,16 @@ class MockLocationService : Service() {
                 .setAction(ACTION_START)
                 .putExtra(EXTRA_LAT, lat)
                 .putExtra(EXTRA_LNG, lng)
+            context.startForegroundService(intent)
+        }
+
+        /**
+         * Plain-mock Start seeded from the current REAL location (no coordinate extras). The
+         * service resolves the seed from last-known real fix / persisted session / default.
+         */
+        fun startAtRealLocation(context: Context) {
+            val intent = Intent(context, MockLocationService::class.java)
+                .setAction(ACTION_START)
             context.startForegroundService(intent)
         }
 

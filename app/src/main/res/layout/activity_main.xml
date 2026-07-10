@@ -182,35 +182,6 @@
                     android:textAppearance="@style/TextAppearance.GpsJoystick.Title"
                     android:paddingBottom="8dp" />
 
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.GpsJoystick.TextInputLayout"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="@string/hint_lat">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/inputLat"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="numberDecimal|numberSigned"
-                        android:importantForAutofill="no" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.GpsJoystick.TextInputLayout"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:hint="@string/hint_lng">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/inputLng"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="numberDecimal|numberSigned"
-                        android:importantForAutofill="no" />
-                </com.google.android.material.textfield.TextInputLayout>
-
                 <TextView
                     android:id="@+id/errorText"
                     android:layout_width="match_parent"
@@ -233,7 +204,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:layout_marginEnd="4dp"
-                        android:text="@string/start" />
+                        android:text="@string/start_mock" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnStop"
@@ -242,7 +213,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:layout_marginStart="4dp"
-                        android:text="@string/stop" />
+                        android:text="@string/return_real" />
                 </LinearLayout>
 
                 <LinearLayout
