@@ -111,6 +111,7 @@ class MapActivity : AppCompatActivity() {
         }
         binding.btnFavSave.setOnClickListener { saveFavorite() }
         binding.btnFavList.setOnClickListener { showFavorites() }
+        binding.btnPasteCoord.setOnClickListener { pasteCoordFromClipboard() }
 
         binding.btnPlay.setOnClickListener { startPlayback() }
         binding.btnStopPlayback.setOnClickListener { MockLocationService.stopPlayback() }
@@ -295,6 +296,28 @@ class MapActivity : AppCompatActivity() {
             }
         }
         return if (bestDist <= TAP_THRESHOLD_PX) bestIdx else null
+    }
+
+    /**
+     * Paste button: read the system clipboard's primary text into the coordinate field so the
+     * user need not long-press-paste. Shows a toast and does nothing when the clip is empty or
+     * non-text. Parsing / 傳送 flow is unchanged — this only fills the field.
+     */
+    private fun pasteCoordFromClipboard() {
+        val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val text = clipboard.primaryClip
+            ?.takeIf { it.itemCount > 0 }
+            ?.getItemAt(0)
+            ?.coerceToText(this)
+            ?.toString()
+            ?.trim()
+            .orEmpty()
+        if (text.isEmpty()) {
+            Toast.makeText(this, R.string.clipboard_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+        binding.coordInput.setText(text)
+        binding.coordInput.setSelection(text.length)
     }
 
     // --- Feature 3: coordinate search / paste ---
