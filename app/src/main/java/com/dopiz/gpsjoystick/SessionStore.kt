@@ -92,6 +92,20 @@ object SessionStore {
         )
     }.getOrDefault(PlaybackMode.LOOP)
 
+    // --- Batch 2: last-chosen GPX library id, so reopening the map reloads it ---
+    private const val K_CURRENT_GPX = "current_gpx_id"
+
+    fun saveCurrentGpxId(context: Context, id: String) {
+        ui(context).edit().putString(K_CURRENT_GPX, id).apply()
+    }
+
+    fun loadCurrentGpxId(context: Context): String? =
+        ui(context).getString(K_CURRENT_GPX, null)
+
+    fun clearCurrentGpxId(context: Context) {
+        ui(context).edit().remove(K_CURRENT_GPX).apply()
+    }
+
     // --- Feature 6: persisted overlay settings (lock + window positions + joystick visibility) ---
     private const val K_LOCK = "joy_lock"
     private const val K_JOY_VISIBLE = "joy_visible"
