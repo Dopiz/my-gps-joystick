@@ -84,11 +84,26 @@ class MockLocationService : Service() {
 
         tickJob?.cancel()
         tickJob = scope.launch {
+            var lastTick = SystemClock.elapsedRealtime()
             while (isActive) {
+                val now = SystemClock.elapsedRealtime()
+                val dtSeconds = (now - lastTick) / 1000.0
+                lastTick = now
+                advancePosition(dtSeconds)
                 pushCurrentLocation()
                 delay(TICK_MS)
             }
         }
+    }
+
+    /** Direction move engine step: shift the held position along the current heading. */
+    private fun advancePosition(dtSeconds: Double) {
+        val s = _state.value
+        if (s.direction == Direction.NONE) return
+        val (lat, lng) = DirectionEngine.step(
+            s.latitude, s.longitude, s.direction, s.speedMps, dtSeconds
+        )
+        _state.update { it.copy(latitude = lat, longitude = lng) }
     }
 
     /**
@@ -139,8 +154,8 @@ class MockLocationService : Service() {
             longitude = s.longitude
             accuracy = 1f
             altitude = 0.0
-            bearing = 0f
-            speed = 0f
+            bearing = s.direction.bearingDegrees
+            speed = if (s.direction == Direction.NONE) 0f else s.speedMps.toFloat()
             time = System.currentTimeMillis()
             elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
             // Fields Google Maps requires on API 26+ before it will accept the fix.
@@ -272,6 +287,19 @@ class MockLocationService : Service() {
             val intent = Intent(context, MockLocationService::class.java)
                 .setAction(ACTION_STOP)
             context.startService(intent)
+        }
+
+        /**
+         * Speed/direction mutate the shared in-memory state directly; the running tick loop
+         * reads it live, so joystick input takes effect immediately without intent churn.
+         * Harmless when not running (just updates the values used on next start).
+         */
+        fun setSpeed(mps: Double) {
+            _state.update { it.copy(speedMps = SpeedModel.clamp(mps)) }
+        }
+
+        fun setDirection(direction: Direction) {
+            _state.update { it.copy(direction = direction) }
         }
     }
 }

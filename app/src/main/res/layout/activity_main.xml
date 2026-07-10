@@ -99,5 +99,64 @@
                 android:layout_weight="1"
                 android:text="@string/stop" />
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/speedLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="@string/speed_label" />
+
+        <SeekBar
+            android:id="@+id/speedSeek"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="29" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="@string/direction_label"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnNorth"
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:text="@string/dir_n" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnWest"
+                android:layout_width="120dp"
+                android:layout_height="wrap_content"
+                android:text="@string/dir_w" />
+
+            <Button
+                android:id="@+id/btnHold"
+                android:layout_width="120dp"
+                android:layout_height="wrap_content"
+                android:text="@string/dir_hold" />
+
+            <Button
+                android:id="@+id/btnEast"
+                android:layout_width="120dp"
+                android:layout_height="wrap_content"
+                android:text="@string/dir_e" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnSouth"
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:text="@string/dir_s" />
     </LinearLayout>
 </ScrollView>

@@ -8,4 +8,11 @@
     <string name="hint_lng">Longitude (e.g. 121.5645)</string>
     <string name="start">Start</string>
     <string name="stop">Stop</string>
+    <string name="speed_label">Speed</string>
+    <string name="direction_label">Direction</string>
+    <string name="dir_n">N</string>
+    <string name="dir_s">S</string>
+    <string name="dir_e">E</string>
+    <string name="dir_w">W</string>
+    <string name="dir_hold">HOLD</string>
 </resources>

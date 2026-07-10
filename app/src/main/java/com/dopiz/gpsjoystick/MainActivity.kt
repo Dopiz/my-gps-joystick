@@ -4,6 +4,7 @@ import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.widget.SeekBar
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -49,6 +50,22 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnStart.setOnClickListener { startMock() }
         binding.btnStop.setOnClickListener { MockLocationService.stop(this) }
+
+        binding.btnNorth.setOnClickListener { MockLocationService.setDirection(Direction.N) }
+        binding.btnSouth.setOnClickListener { MockLocationService.setDirection(Direction.S) }
+        binding.btnEast.setOnClickListener { MockLocationService.setDirection(Direction.E) }
+        binding.btnWest.setOnClickListener { MockLocationService.setDirection(Direction.W) }
+        binding.btnHold.setOnClickListener { MockLocationService.setDirection(Direction.NONE) }
+
+        binding.speedSeek.progress =
+            (MockState.DEFAULT_SPEED_MPS - SpeedModel.MIN_MPS).toInt().coerceAtLeast(0)
+        binding.speedSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                MockLocationService.setSpeed(SpeedModel.MIN_MPS + progress)
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
 
         maybeRequestNotifications()
         observeService()
@@ -98,12 +115,14 @@ class MainActivity : AppCompatActivity() {
             appendLine("Mock app selected : ${mark(p.isMockAppSelected)}")
             appendLine("Overlay granted   : ${mark(p.overlayGranted)}")
             appendLine("Notifications     : ${mark(p.notificationsGranted)}")
-            append("Mock running      : ${mark(serviceState.isRunning)}")
-            if (serviceState.isRunning) {
-                append("  @ ${"%.5f".format(serviceState.latitude)}, " +
-                    "%.5f".format(serviceState.longitude))
-            }
+            appendLine("Mock running      : ${mark(serviceState.isRunning)}")
+            appendLine("Speed             : ${"%.0f".format(serviceState.speedMps)} m/s")
+            appendLine("Direction         : ${serviceState.direction}")
+            append("Position          : ${"%.5f".format(serviceState.latitude)}, " +
+                "%.5f".format(serviceState.longitude))
         }
+        binding.speedLabel.text =
+            "${getString(R.string.speed_label)}: ${"%.0f".format(serviceState.speedMps)} m/s"
     }
 
     private fun maybeRequestNotifications() {
