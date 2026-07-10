@@ -17,6 +17,13 @@ data class MockState(
     val headingActive: Boolean = false,
     val headingNorth: Double = 0.0,
     val headingEast: Double = 0.0,
+    /**
+     * Global movement freeze driven by the overlay hub's ▶/⏸ button. When true the tick loop
+     * holds the last fix and advances NOTHING — locked hands-free march, smooth glide, AND GPX
+     * playback all freeze — but keeps re-injecting the held position so the provider stays alive.
+     * Master gate over all position advancement; transient (not persisted).
+     */
+    val movementPaused: Boolean = false,
     /** GPX playback session (route + cursor + mode). Empty route = nothing to play. */
     val playback: Playback = Playback(),
     /**

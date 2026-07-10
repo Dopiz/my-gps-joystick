@@ -143,6 +143,9 @@ class MockLocationService : Service() {
     /** Direction move engine step: shift the held position along the current heading. */
     private fun advancePosition(dtSeconds: Double) {
         val s = _state.value
+        // Hub ▶/⏸ master gate: when paused, advance nothing. The tick still injects the held
+        // position (pushCurrentLocation runs after this) so the provider stays alive frozen.
+        if (s.movementPaused) return
         // Feature 4: an active glide teleport owns the position until it eases to the target.
         if (s.glideActive) {
             val now = SystemClock.elapsedRealtime()
@@ -231,7 +234,8 @@ class MockLocationService : Service() {
             accuracy = 1f
             altitude = 0.0
             val playing = s.playback.active && !s.playback.paused && s.playback.hasRoute
-            val moving = playing || s.headingActive || s.direction != Direction.NONE
+            val moving = !s.movementPaused &&
+                (playing || s.headingActive || s.direction != Direction.NONE)
             bearing = when {
                 playing -> PlaybackEngine.currentBearing(s.playback)
                 s.headingActive -> DirectionEngine.bearingOf(s.headingNorth, s.headingEast)
@@ -410,6 +414,15 @@ class MockLocationService : Service() {
          */
         fun setSpeed(mps: Double) {
             _state.update { it.copy(speedMps = SpeedModel.clamp(mps)) }
+        }
+
+        /**
+         * Hub ▶/⏸ master freeze. When true the tick loop holds the current fix and advances
+         * nothing (march / glide / GPX playback all frozen); false resumes. The running tick
+         * reads this live, so it takes effect on the next frame.
+         */
+        fun setMovementPaused(paused: Boolean) {
+            _state.update { it.copy(movementPaused = paused) }
         }
 
         fun setDirection(direction: Direction) {
