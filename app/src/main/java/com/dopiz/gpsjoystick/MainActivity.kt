@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private var overlayShown = false
 
     private val locationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -50,6 +51,8 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnStart.setOnClickListener { startMock() }
         binding.btnStop.setOnClickListener { MockLocationService.stop(this) }
+
+        binding.btnToggleOverlay.setOnClickListener { toggleOverlay() }
 
         binding.btnNorth.setOnClickListener { MockLocationService.setDirection(Direction.N) }
         binding.btnSouth.setOnClickListener { MockLocationService.setDirection(Direction.S) }
@@ -88,6 +91,22 @@ class MainActivity : AppCompatActivity() {
             return
         }
         MockLocationService.start(this, lat, lng)
+    }
+
+    private fun toggleOverlay() {
+        if (!PermissionChecker.isOverlayGranted(this)) {
+            Toast.makeText(this, "請先授予懸浮窗權限", Toast.LENGTH_LONG).show()
+            startActivity(PermissionChecker.overlaySettingsIntent(this))
+            return
+        }
+        overlayShown = !overlayShown
+        if (overlayShown) {
+            OverlayService.show(this)
+            binding.btnToggleOverlay.setText(R.string.hide_overlay)
+        } else {
+            OverlayService.hide(this)
+            binding.btnToggleOverlay.setText(R.string.show_overlay)
+        }
     }
 
     private fun observeService() {
