@@ -86,6 +86,7 @@
     <string name="hint_coord">貼上座標，如 25.0339, 121.5645</string>
     <string name="coord_go">前往</string>
     <string name="coord_invalid">座標格式錯誤，請輸入「緯度, 經度」（緯度 -90~90，經度 -180~180）</string>
+    <string name="coord_empty">請先輸入座標</string>
     <string name="coord_teleport">前往 %1$s, %2$s</string>
     <string name="fav_save">收藏目前座標</string>
     <string name="fav_open">收藏清單</string>

@@ -375,8 +375,18 @@ class MapActivity : AppCompatActivity() {
 
     // --- Feature 3 / Batch 1: favorites with a user-chosen name ---
     private fun saveFavorite() {
-        val s = MockLocationService.state.value
-        val coordLabel = "${fmt(s.latitude)}, ${fmt(s.longitude)}"
+        val raw = binding.coordInput.text?.toString().orEmpty()
+        if (raw.isBlank()) {
+            Toast.makeText(this, R.string.coord_empty, Toast.LENGTH_LONG).show()
+            return
+        }
+        val coord = parseCoord(raw)
+        if (coord == null) {
+            Toast.makeText(this, R.string.coord_invalid, Toast.LENGTH_LONG).show()
+            return
+        }
+        val (lat, lng) = coord
+        val coordLabel = "${fmt(lat)}, ${fmt(lng)}"
         val pad = (16 * resources.displayMetrics.density).toInt()
         val input = EditText(this).apply {
             setText(coordLabel)
@@ -392,7 +402,7 @@ class MapActivity : AppCompatActivity() {
             .setView(container)
             .setPositiveButton(R.string.dialog_save) { _, _ ->
                 val name = input.text.toString().trim().ifEmpty { coordLabel }
-                FavoritesStore.add(this, FavoritesStore.Fav(s.latitude, s.longitude, name))
+                FavoritesStore.add(this, FavoritesStore.Fav(lat, lng, name))
                 Toast.makeText(this, getString(R.string.fav_saved, name), Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.dialog_cancel, null)
