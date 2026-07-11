@@ -137,7 +137,17 @@ class MockLocationService : Service() {
         if (!registerProvider()) return  // error already surfaced to state
 
         _state.update {
-            it.copy(isRunning = true, latitude = lat, longitude = lng, error = null)
+            // Change 2: when resuming a paused route that drifted away, play() has already flagged
+            // the RETURNING phase — keep the current (moved-away) position so the walk-back starts
+            // from there instead of hard-jumping to the seed. Otherwise seed the given coordinate.
+            if (it.playback.returning) {
+                it.copy(isRunning = true, error = null)
+            } else {
+                it.copy(
+                    isRunning = true, latitude = lat, longitude = lng, error = null,
+                    playback = it.playback.copy(hasAnchor = false),
+                )
+            }
         }
 
         tickJob?.cancel()
@@ -197,6 +207,35 @@ class MockLocationService : Service() {
                     it.copy(
                         latitude = s.glideFromLat + (s.glideToLat - s.glideFromLat) * e,
                         longitude = s.glideFromLng + (s.glideToLng - s.glideFromLng) * e,
+                    )
+                }
+            }
+            return
+        }
+        // Change 2 — RETURNING phase: after resuming from a pause where the injected position
+        // drifted away (joystick march / teleport), walk STRAIGHT back to the paused cursor at the
+        // shared speed before the route resumes. Constant-speed straight line — not a teleport, not
+        // the glide, and the cursor stays frozen until we arrive.
+        if (s.playback.active && !s.playback.paused && s.playback.hasRoute && s.playback.returning) {
+            val target = GeoPt(s.playback.anchorLat, s.playback.anchorLng)
+            val cur = GeoPt(s.latitude, s.longitude)
+            val dist = PlaybackEngine.segMeters(cur, target)
+            val stepM = SpeedModel.distanceMeters(s.speedMps, dtSeconds)
+            if (stepM <= 0.0) return  // no speed → hold in place rather than teleport
+            if (dist <= RETURN_THRESHOLD_M || stepM >= dist) {
+                // Arrived: snap onto the route resume point and hand back to normal playback.
+                _state.update {
+                    it.copy(
+                        latitude = target.lat, longitude = target.lng,
+                        playback = it.playback.copy(returning = false),
+                    )
+                }
+            } else {
+                val f = stepM / dist
+                _state.update {
+                    it.copy(
+                        latitude = cur.lat + (target.lat - cur.lat) * f,
+                        longitude = cur.lng + (target.lng - cur.lng) * f,
                     )
                 }
             }
@@ -406,6 +445,8 @@ class MockLocationService : Service() {
         private const val GLIDE_MS_PER_M = 4.0
         private const val GLIDE_MIN_MS = 600L
         private const val GLIDE_MAX_MS = 1200L
+        // Change 2: within this many meters of the paused cursor, skip/finish the walk-back.
+        private const val RETURN_THRESHOLD_M = 3.0
 
         private val _state = MutableStateFlow(MockState())
         val state: StateFlow<MockState> = _state.asStateFlow()
@@ -528,6 +569,8 @@ class MockLocationService : Service() {
                         segmentIndex = 0,
                         segmentProgress = 0.0,
                         forward = true,
+                        returning = false,
+                        hasAnchor = false,
                     )
                 )
             }
@@ -546,25 +589,56 @@ class MockLocationService : Service() {
                         segmentIndex = index.coerceIn(0, last),
                         segmentProgress = 0.0,
                         forward = true,
+                        returning = false,
+                        hasAnchor = false,
                     )
                 )
             }
         }
 
-        fun play() {
-            _state.update { it.copy(playback = it.playback.copy(active = true, paused = false)) }
+        /**
+         * Change 2 — the single decision point for (re)starting the route, shared by [play] (fresh
+         * start / overlay-and-map start-branch after teleport) and [resumePlayback] (pause→resume in
+         * place). If a pause anchor exists and the injected position has drifted away from it, enter
+         * the RETURNING phase so the tick walks back to the anchor at the shared speed before the
+         * route continues; otherwise resume immediately. The anchor is consumed either way.
+         */
+        private fun MockState.resumeRoute(): MockState {
+            val pb = playback
+            val drifted = pb.hasAnchor && pb.hasRoute &&
+                PlaybackEngine.segMeters(GeoPt(latitude, longitude), GeoPt(pb.anchorLat, pb.anchorLng)) > RETURN_THRESHOLD_M
+            return copy(playback = pb.copy(active = true, paused = false, returning = drifted, hasAnchor = false))
         }
 
+        fun play() {
+            _state.update { it.resumeRoute() }
+        }
+
+        /**
+         * Pause. Records the pause anchor = geo coordinate of the frozen cursor, so a later resume
+         * can walk back to it if the position was moved away meanwhile (joystick / teleport).
+         */
         fun pausePlayback() {
-            _state.update { it.copy(playback = it.playback.copy(paused = true)) }
+            _state.update {
+                val anchor = PlaybackEngine.currentPos(it.playback)
+                it.copy(
+                    playback = it.playback.copy(
+                        paused = true,
+                        hasAnchor = it.playback.hasRoute,
+                        anchorLat = anchor.lat, anchorLng = anchor.lng,
+                    )
+                )
+            }
         }
 
         fun resumePlayback() {
-            _state.update { it.copy(playback = it.playback.copy(active = true, paused = false)) }
+            _state.update { it.resumeRoute() }
         }
 
         fun stopPlayback() {
-            _state.update { it.copy(playback = it.playback.copy(active = false, paused = false)) }
+            _state.update {
+                it.copy(playback = it.playback.copy(active = false, paused = false, returning = false, hasAnchor = false))
+            }
         }
 
         /**
@@ -580,6 +654,8 @@ class MockLocationService : Service() {
                         segmentIndex = 0,
                         segmentProgress = 0.0,
                         forward = true,
+                        returning = false,
+                        hasAnchor = false,
                     )
                 )
             }

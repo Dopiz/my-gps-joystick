@@ -27,6 +27,23 @@ data class Playback(
     val segmentProgress: Double = 0.0,
     /** REVERSE ping-pongs this; LOOP keeps it true. */
     val forward: Boolean = true,
+    /**
+     * Change 2 — pause anchor. Set when playback pauses to the geo coordinate of the cursor at that
+     * moment ([PlaybackEngine.currentPos]). It SURVIVES a subsequent teleport / joystick march (which
+     * deactivate playback but leave the cursor + this anchor intact), so on the next play/resume we
+     * know where the route was left. Consumed (cleared) when play/resume decides whether to walk back.
+     */
+    val hasAnchor: Boolean = false,
+    val anchorLat: Double = 0.0,
+    val anchorLng: Double = 0.0,
+    /**
+     * Change 2 — RETURNING phase. When true the tick loop does NOT advance the cursor; instead it
+     * walks the injected position in a straight line toward ([anchorLat],[anchorLng]) at the shared
+     * [SpeedModel] speed. Entered on play/resume when the injected position drifted away from the
+     * pause anchor; cleared on arrival (within a few meters), after which normal playback continues
+     * from the frozen cursor. Reads as "playing" (blue) since it is actively moving.
+     */
+    val returning: Boolean = false,
 ) {
     val hasRoute: Boolean get() = points.size >= 2
 }
