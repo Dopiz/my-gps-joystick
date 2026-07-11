@@ -453,6 +453,15 @@ class MapActivity : AppCompatActivity() {
         MockLocationService.setMovementPaused(false)
         MockLocationService.startPlayback(this, start.lat, start.lng)
         MockLocationService.play()
+        // Change 1: bring up the floating overlay (hub + joystick) just like MainActivity's 開始模擬.
+        // Playback + mock are already running above; if overlay permission is missing we still keep
+        // playing and only guide the user to grant it — never block or crash the play.
+        if (PermissionChecker.isOverlayGranted(this)) {
+            OverlayService.showAll(this)
+        } else {
+            Toast.makeText(this, R.string.overlay_needed_for_joystick, Toast.LENGTH_LONG).show()
+            startActivity(PermissionChecker.overlaySettingsIntent(this))
+        }
     }
 
     /**
