@@ -1,14 +1,18 @@
 name: Release
 
-# 推一個 v* tag 就會觸發：建 APK → 建立 GitHub Release（內建產生 changelog/release notes）→ 上傳 APK。
-# 例：git tag v1.0.0 && git push origin v1.0.0
+# 只在 GitHub 網頁手動觸發（Actions 分頁 → Release → Run workflow）。
+# 觸發時填入版本號（例如 v1.0.0），流程會建 APK → 用該版本號建立 tag 與 GitHub Release
+# （內建自動產生 changelog/release notes）→ 上傳 APK。
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本號 / release tag（例如 v1.0.0）'
+        required: true
+        type: string
 
 permissions:
-  contents: write  # 建立 release 需要
+  contents: write  # 建立 tag / release 需要
 
 jobs:
   release:
@@ -41,10 +45,12 @@ jobs:
       - name: Stage APK with version name
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/gps-joystick-${{ github.ref_name }}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/gps-joystick-${{ inputs.version }}.apk"
 
       - name: Create GitHub Release with generated notes + APK
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true   # GitHub 內建自動產生 changelog/release notes
-          files: dist/gps-joystick-${{ github.ref_name }}.apk
+          tag_name: ${{ inputs.version }}        # 用輸入的版本號建立 tag（不存在會自動從當前 commit 建立）
+          name: ${{ inputs.version }}
+          generate_release_notes: true            # GitHub 內建自動產生 changelog/release notes
+          files: dist/gps-joystick-${{ inputs.version }}.apk
