@@ -1,0 +1,50 @@
+name: Release
+
+# 推一個 v* tag 就會觸發：建 APK → 建立 GitHub Release（內建產生 changelog/release notes）→ 上傳 APK。
+# 例：git tag v1.0.0 && git push origin v1.0.0
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write  # 建立 release 需要
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 讓 GitHub 能從完整歷史產生 release notes
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # gradle.properties 把 org.gradle.java.home 釘在本機 macOS 的 JDK 路徑，
+      # 在 Linux runner 上不存在，移除該行改用 runner 的 JAVA_HOME（JDK 21）。
+      - name: Unpin local JDK path for CI
+        run: sed -i '/org.gradle.java.home/d' gradle.properties
+
+      - name: Build debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Stage APK with version name
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/gps-joystick-${{ github.ref_name }}.apk"
+
+      - name: Create GitHub Release with generated notes + APK
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true   # GitHub 內建自動產生 changelog/release notes
+          files: dist/gps-joystick-${{ github.ref_name }}.apk
