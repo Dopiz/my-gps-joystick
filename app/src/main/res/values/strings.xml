@@ -54,6 +54,18 @@
     <string name="overlay_gpx_toggle">GPX 開始／暫停</string>
     <string name="gpx_toggle_need_perm">請先在主畫面授予定位權限並設為模擬位置 app</string>
 
+    <!-- 連點（auto-tap） -->
+    <string name="autotap_service_label">連點</string>
+    <string name="autotap_service_desc">用於連點功能：對已儲存的螢幕位置送出點擊。</string>
+    <string name="autotap_pick_hint">點擊最多 3 個位置，完成後按儲存</string>
+    <string name="autotap_clear">清除</string>
+    <string name="autotap_save">儲存</string>
+    <string name="autotap_cancel">取消</string>
+    <string name="autotap_need_service">請先在無障礙設定啟用連點服務</string>
+    <string name="overlay_autotap">連點</string>
+    <string name="overlay_autotap_set">設定點位</string>
+    <string name="overlay_autotap_toggle">連點開始／停止</string>
+
     <!-- Feature 1: speed presets + dual-unit speed readout -->
     <string name="speed_preset_walk">走 5</string>
     <string name="speed_preset_cycle">跑 15</string>

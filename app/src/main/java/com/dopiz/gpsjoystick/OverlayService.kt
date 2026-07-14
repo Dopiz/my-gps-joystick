@@ -14,8 +14,12 @@ import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,15 +59,19 @@ class OverlayService : Service() {
     private var btnMap: ChildButton? = null
     private var btnJoystick: ChildButton? = null
     private var btnLock: ChildButton? = null
+    private var btnAutoTap: ChildButton? = null
     private var btnSpeed: ChildButton? = null
     private var subWalk: ChildButton? = null
     private var subRun: ChildButton? = null
     private var subCar: ChildButton? = null
     private var subMapOpen: ChildButton? = null
     private var subGpx: ChildButton? = null
-    private val columnButtons get() = listOfNotNull(btnMap, btnJoystick, btnLock, btnSpeed)
+    private var subTapSet: ChildButton? = null
+    private var subTapToggle: ChildButton? = null
+    private val columnButtons get() = listOfNotNull(btnMap, btnJoystick, btnLock, btnAutoTap, btnSpeed)
     private val speedSubs get() = listOfNotNull(subWalk, subRun, subCar)
     private val mapSubs get() = listOfNotNull(subMapOpen, subGpx)
+    private val tapSubs get() = listOfNotNull(subTapSet, subTapToggle)
 
     // Live windowed children + their params, so we can move/remove them precisely.
     private val childParams = HashMap<ChildButton, WindowManager.LayoutParams>()
@@ -72,8 +80,13 @@ class OverlayService : Service() {
     private var expanded = false
     private var speedOpen = false
     private var mapOpen = false
+    private var tapOpen = false
     private var vDir = 1
     private var hDir = 1
+
+    // --- 連點選點層 (full-screen picker window) ---
+    private var pickRoot: View? = null
+    private var pickInner: TapPickView? = null
 
     // --- Joystick window state ---
     private var joystickView: View? = null
@@ -171,6 +184,10 @@ class OverlayService : Service() {
         btnLock = ChildButton(this, ChildButton.Glyph.LOCK_OPEN).also {
             it.setOnClickListener { toggleLock() }
         }
+        btnAutoTap = ChildButton(this, ChildButton.Glyph.TAP).also {
+            it.contentDescription = getString(R.string.overlay_autotap)
+            it.setOnClickListener { toggleTapRing() }
+        }
         btnSpeed = ChildButton(this, ChildButton.Glyph.SPEED).also {
             it.setOnClickListener { toggleSpeedRing() }
         }
@@ -190,6 +207,14 @@ class OverlayService : Service() {
         subGpx = ChildButton(this, ChildButton.Glyph.PLAY).also {
             it.contentDescription = getString(R.string.overlay_gpx_toggle)
             it.setOnClickListener { toggleGpx() }
+        }
+        subTapSet = ChildButton(this, ChildButton.Glyph.TARGET).also {
+            it.contentDescription = getString(R.string.overlay_autotap_set)
+            it.setOnClickListener { enterAutoTapPick() }
+        }
+        subTapToggle = ChildButton(this, ChildButton.Glyph.TAP).also {
+            it.contentDescription = getString(R.string.overlay_autotap_toggle)
+            it.setOnClickListener { toggleAutoTap() }
         }
     }
 
@@ -317,6 +342,7 @@ class OverlayService : Service() {
         expanded = true
         speedOpen = false
         mapOpen = false
+        tapOpen = false
         columnButtons.forEachIndexed { i, b -> addChildWin(b, columnCenterX(), columnCenterY(i)) }
         v.setExpandedVisual(true)
         applyState()
@@ -326,6 +352,7 @@ class OverlayService : Service() {
         expanded = false
         speedOpen = false
         mapOpen = false
+        tapOpen = false
         childParams.keys.toList().forEach { removeChildWin(it) }
         hubView?.setExpandedVisual(false)
         saveHubPos()
@@ -334,6 +361,7 @@ class OverlayService : Service() {
     private fun toggleSpeedRing() {
         if (!expanded) return
         if (mapOpen) { mapOpen = false; mapSubs.forEach { removeChildWin(it) } }
+        if (tapOpen) { tapOpen = false; tapSubs.forEach { removeChildWin(it) } }
         speedOpen = !speedOpen
         if (speedOpen) {
             val v = hubView ?: return
@@ -347,12 +375,27 @@ class OverlayService : Service() {
     private fun toggleMapRing() {
         if (!expanded) return
         if (speedOpen) { speedOpen = false; speedSubs.forEach { removeChildWin(it) } }
+        if (tapOpen) { tapOpen = false; tapSubs.forEach { removeChildWin(it) } }
         mapOpen = !mapOpen
         if (mapOpen) {
             mapSubs.forEachIndexed { j, b -> addChildWin(b, rowCenterX(j), columnCenterY(0)) }
             applyState()
         } else {
             mapSubs.forEach { removeChildWin(it) }
+        }
+    }
+
+    private fun toggleTapRing() {
+        if (!expanded) return
+        if (speedOpen) { speedOpen = false; speedSubs.forEach { removeChildWin(it) } }
+        if (mapOpen) { mapOpen = false; mapSubs.forEach { removeChildWin(it) } }
+        tapOpen = !tapOpen
+        if (tapOpen) {
+            val v = hubView ?: return
+            tapSubs.forEachIndexed { j, b -> addChildWin(b, rowCenterX(j), columnCenterY(v.autoTapIndex)) }
+            applyState()
+        } else {
+            tapSubs.forEach { removeChildWin(it) }
         }
     }
 
@@ -364,6 +407,9 @@ class OverlayService : Service() {
             moveChildWin(b, rowCenterX(j), columnCenterY(v.speedIndex))
         }
         if (mapOpen) mapSubs.forEachIndexed { j, b -> moveChildWin(b, rowCenterX(j), columnCenterY(0)) }
+        if (tapOpen) tapSubs.forEachIndexed { j, b ->
+            moveChildWin(b, rowCenterX(j), columnCenterY(v.autoTapIndex))
+        }
     }
 
     private fun moveHub(dx: Float, dy: Float) {
@@ -386,7 +432,8 @@ class OverlayService : Service() {
     private fun startObserving() {
         observeJob?.cancel()
         observeJob = scope.launch {
-            MockLocationService.state.collectLatest { applyState() }
+            launch { MockLocationService.state.collectLatest { applyState() } }
+            launch { AutoTapService.running.collectLatest { applyState() } }
         }
     }
 
@@ -396,6 +443,16 @@ class OverlayService : Service() {
         setLockVisual(joystickLocked)
         setSpeedVisual(bucketOf(s.speedMps))
         subGpx?.applyGpx(gpxVisual(s))
+        setAutoTapVisual()
+    }
+
+    /** 連點 toggle: disabled (dimmed) with no saved points; green while the tap loop is running. */
+    private fun setAutoTapVisual() {
+        val b = subTapToggle ?: return
+        val hasPoints = SessionStore.loadTapPoints(this).isNotEmpty()
+        b.isEnabled = hasPoints
+        b.dimmed = !hasPoints
+        b.active = AutoTapService.running.value
     }
 
     private fun setLockVisual(locked: Boolean) {
@@ -513,6 +570,107 @@ class OverlayService : Service() {
     }
 
     // ---------------------------------------------------------------------------------------
+    // 連點 (auto-tap): start/stop toggle + full-screen point picker
+    // ---------------------------------------------------------------------------------------
+
+    private fun toggleAutoTap() {
+        val svc = AutoTapService.instance
+        if (svc == null) {
+            Toast.makeText(this, R.string.autotap_need_service, Toast.LENGTH_LONG).show()
+            runCatching {
+                startActivity(
+                    Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }
+            return
+        }
+        if (svc.isRunning) {
+            svc.stopTapping()
+        } else {
+            val points = SessionStore.loadTapPoints(this)
+            if (points.isEmpty()) return   // toggle is disabled anyway
+            svc.startTapping(points)
+        }
+        applyState()
+    }
+
+    /**
+     * Enter the point picker: a full-screen touch-catching overlay. The hub + joystick are hidden so
+     * they can't block the taps, and restored on exit. Existing points start cleared each time.
+     */
+    private fun enterAutoTapPick() {
+        if (pickRoot != null) return
+        collapse()
+        hubView?.visibility = View.GONE
+        joystickView?.visibility = View.GONE
+
+        val root = FrameLayout(this)
+        val pick = TapPickView(this)
+        root.addView(pick, FrameLayout.LayoutParams(MP, MP))
+
+        val hint = TextView(this).apply {
+            setText(R.string.autotap_pick_hint)
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 16f
+            gravity = Gravity.CENTER
+            val padH = (16 * density).toInt()
+            setPadding(padH, (48 * density).toInt(), padH, (16 * density).toInt())
+        }
+        root.addView(hint, FrameLayout.LayoutParams(MP, WC, Gravity.TOP))
+
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            val padH = (16 * density).toInt()
+            setPadding(padH, padH, padH, (32 * density).toInt())
+        }
+        fun addBarButton(textRes: Int, onClick: () -> Unit) {
+            val b = Button(this).apply {
+                setText(textRes)
+                setOnClickListener { onClick() }
+            }
+            bar.addView(b, LinearLayout.LayoutParams(0, WC, 1f))
+        }
+        addBarButton(R.string.autotap_clear) { pick.clearPoints() }
+        addBarButton(R.string.autotap_save) { exitAutoTapPick(save = true) }
+        addBarButton(R.string.autotap_cancel) { exitAutoTapPick(save = false) }
+        root.addView(bar, FrameLayout.LayoutParams(MP, WC, Gravity.BOTTOM))
+
+        pickRoot = root
+        pickInner = pick
+        runCatching { windowManager.addView(root, fullscreenParams()) }
+    }
+
+    private fun exitAutoTapPick(save: Boolean) {
+        if (save) pickInner?.let { SessionStore.saveTapPoints(this, it.points) }
+        pickRoot?.let { runCatching { windowManager.removeView(it) } }
+        pickRoot = null
+        pickInner = null
+        hubView?.visibility = View.VISIBLE
+        joystickView?.visibility = View.VISIBLE
+        applyState()
+    }
+
+    /** Full-screen overlay whose view coords equal screen coords (NO_LIMITS), for absolute taps. */
+    private fun fullscreenParams(): WindowManager.LayoutParams {
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        return WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply { gravity = Gravity.TOP or Gravity.START }
+    }
+
+    // ---------------------------------------------------------------------------------------
     // Window / lifecycle plumbing
     // ---------------------------------------------------------------------------------------
 
@@ -536,6 +694,11 @@ class OverlayService : Service() {
     private fun teardown() {
         observeJob?.cancel()
         observeJob = null
+        // 連點 must not keep firing after the overlay is gone.
+        AutoTapService.instance?.stopTapping()
+        pickRoot?.let { runCatching { windowManager.removeView(it) } }
+        pickRoot = null
+        pickInner = null
         joystickView?.let { runCatching { windowManager.removeView(it) } }
         joystickView = null
         childParams.keys.toList().forEach { runCatching { windowManager.removeView(it) } }
@@ -609,6 +772,9 @@ class OverlayService : Service() {
 
         private const val CHANNEL_ID = "overlay_joystick"
         private const val NOTIFICATION_ID = 1002
+
+        private const val MP = ViewGroup.LayoutParams.MATCH_PARENT
+        private const val WC = ViewGroup.LayoutParams.WRAP_CONTENT
 
         /** Speed presets in km/h, in sub-row order 走 / 跑 / 車 — matches MapActivity chips. */
         private val PRESET_KMH = listOf(5.0, 15.0, 40.0)

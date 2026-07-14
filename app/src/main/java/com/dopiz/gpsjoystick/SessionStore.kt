@@ -1,6 +1,7 @@
 package com.dopiz.gpsjoystick
 
 import android.content.Context
+import android.graphics.PointF
 
 /**
  * Lightweight SharedPreferences persistence of the running session, so the foreground service
@@ -169,6 +170,25 @@ object SessionStore {
         val x = p.getInt(K_JOY_X, UNSET)
         val y = p.getInt(K_JOY_Y, UNSET)
         return if (x == UNSET || y == UNSET) null else x to y
+    }
+
+    // --- 連點（auto-tap）: up to 3 screen points as "x,y;x,y" (screen px). ---
+    private const val K_TAP_POINTS = "tap_points"
+
+    fun saveTapPoints(context: Context, points: List<PointF>) {
+        val raw = points.take(3).joinToString(";") { "${it.x},${it.y}" }
+        ui(context).edit().putString(K_TAP_POINTS, raw).apply()
+    }
+
+    fun loadTapPoints(context: Context): List<PointF> {
+        val raw = ui(context).getString(K_TAP_POINTS, "") ?: ""
+        if (raw.isBlank()) return emptyList()
+        return raw.split(";").mapNotNull { pair ->
+            val parts = pair.split(",")
+            val x = parts.getOrNull(0)?.toFloatOrNull()
+            val y = parts.getOrNull(1)?.toFloatOrNull()
+            if (x != null && y != null) PointF(x, y) else null
+        }
     }
 
     private fun encodeRoute(points: List<GeoPt>): String =
