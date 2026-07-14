@@ -170,6 +170,21 @@ class MainActivity : AppCompatActivity() {
         stepIcon(binding.stepIcon1, p.locationGranted)
         stepIcon(binding.stepIcon2, p.isMockAppSelected)
         stepIcon(binding.stepIcon3, p.overlayGranted)
+        reorderPermissions(allReady)
+    }
+
+    /**
+     * Keep the permissions card where it is most useful: pinned as the first section (just
+     * below the logo at index 0) while any gate is missing, and demoted to the very bottom
+     * once all three are granted. Moves the single view instead of rebuilding the page.
+     */
+    private fun reorderPermissions(allReady: Boolean) {
+        val root = binding.contentRoot
+        val card = binding.permissionsCard
+        val desiredIndex = if (allReady) root.childCount - 1 else 1
+        if (root.indexOfChild(card) == desiredIndex) return
+        root.removeView(card)
+        if (allReady) root.addView(card) else root.addView(card, 1)
     }
 
     private fun stepIcon(view: android.widget.ImageView, done: Boolean) {
