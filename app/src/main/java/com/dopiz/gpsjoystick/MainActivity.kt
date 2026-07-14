@@ -63,6 +63,10 @@ class MainActivity : AppCompatActivity() {
             startActivity(android.content.Intent(this, GpxLibraryActivity::class.java))
         }
 
+        binding.btnRecordTap1.setOnClickListener { recordTapSlot(1) }
+        binding.btnRecordTap2.setOnClickListener { recordTapSlot(2) }
+        binding.btnRecordTap3.setOnClickListener { recordTapSlot(3) }
+
         maybeRequestNotifications()
         observeService()
     }
@@ -70,6 +74,40 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         renderPermissions()
+        renderTapSlots()
+    }
+
+    /**
+     * Start recording preset [slot]: tell [OverlayService] to open the full-screen point picker, then
+     * drop this activity to the background so the user can pick points on the target app's screen.
+     * Needs the overlay permission (same gate as the joystick) to draw the picker.
+     */
+    private fun recordTapSlot(slot: Int) {
+        if (!PermissionChecker.isOverlayGranted(this)) {
+            Toast.makeText(this, R.string.autotap_need_overlay, Toast.LENGTH_LONG).show()
+            startActivity(PermissionChecker.overlaySettingsIntent(this))
+            return
+        }
+        startService(
+            android.content.Intent(this, OverlayService::class.java)
+                .setAction(OverlayService.ACTION_PICK_TAP)
+                .putExtra(OverlayService.EXTRA_SLOT, slot)
+        )
+        moveTaskToBack(true)
+    }
+
+    /** Refresh the three 連點 preset rows: label + "未設定 / N 個點" status. */
+    private fun renderTapSlots() {
+        val labels = listOf(binding.tapSlotLabel1, binding.tapSlotLabel2, binding.tapSlotLabel3)
+        val statuses = listOf(binding.tapSlotStatus1, binding.tapSlotStatus2, binding.tapSlotStatus3)
+        for (i in 0..2) {
+            val slot = i + 1
+            labels[i].text = getString(R.string.autotap_slot_label, slot)
+            val n = SessionStore.loadTapPoints(this, slot).size
+            statuses[i].text =
+                if (n == 0) getString(R.string.autotap_slot_unset)
+                else getString(R.string.autotap_slot_count, n)
+        }
     }
 
     private fun startMock() {

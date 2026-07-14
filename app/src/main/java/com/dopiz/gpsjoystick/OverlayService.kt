@@ -66,12 +66,13 @@ class OverlayService : Service() {
     private var subCar: ChildButton? = null
     private var subMapOpen: ChildButton? = null
     private var subGpx: ChildButton? = null
-    private var subTapSet: ChildButton? = null
-    private var subTapToggle: ChildButton? = null
+    private var subTap1: ChildButton? = null
+    private var subTap2: ChildButton? = null
+    private var subTap3: ChildButton? = null
     private val columnButtons get() = listOfNotNull(btnMap, btnJoystick, btnLock, btnAutoTap, btnSpeed)
     private val speedSubs get() = listOfNotNull(subWalk, subRun, subCar)
     private val mapSubs get() = listOfNotNull(subMapOpen, subGpx)
-    private val tapSubs get() = listOfNotNull(subTapSet, subTapToggle)
+    private val tapSubs get() = listOfNotNull(subTap1, subTap2, subTap3)
 
     // Live windowed children + their params, so we can move/remove them precisely.
     private val childParams = HashMap<ChildButton, WindowManager.LayoutParams>()
@@ -87,6 +88,7 @@ class OverlayService : Service() {
     // --- 連點選點層 (full-screen picker window) ---
     private var pickRoot: View? = null
     private var pickInner: TapPickView? = null
+    private var pickSlot = 1   // which preset (1..3) the current pick session writes to
 
     // --- Joystick window state ---
     private var joystickView: View? = null
@@ -106,6 +108,11 @@ class OverlayService : Service() {
             }
             // Mock-start path: show the hub AND the joystick together by default.
             ACTION_SHOW_ALL -> showHub(alsoJoystick = true)
+            // App-driven point recording: ensure the hub is up, then open the picker for the slot.
+            ACTION_PICK_TAP -> {
+                showHub()
+                if (hubView != null) enterAutoTapPick(intent.getIntExtra(EXTRA_SLOT, 1))
+            }
             else -> showHub()
         }
         return START_STICKY
@@ -208,13 +215,18 @@ class OverlayService : Service() {
             it.contentDescription = getString(R.string.overlay_gpx_toggle)
             it.setOnClickListener { toggleGpx() }
         }
-        subTapSet = ChildButton(this, ChildButton.Glyph.TARGET).also {
-            it.contentDescription = getString(R.string.overlay_autotap_set)
-            it.setOnClickListener { enterAutoTapPick() }
+        // 連點 sub-row: three preset slots shown as 1 / 2 / 3; only one can be active at a time.
+        subTap1 = ChildButton(this, ChildButton.Glyph.TEXT, "1").also {
+            it.contentDescription = getString(R.string.autotap_slot_label, 1)
+            it.setOnClickListener { onTapSlot(1) }
         }
-        subTapToggle = ChildButton(this, ChildButton.Glyph.TAP).also {
-            it.contentDescription = getString(R.string.overlay_autotap_toggle)
-            it.setOnClickListener { toggleAutoTap() }
+        subTap2 = ChildButton(this, ChildButton.Glyph.TEXT, "2").also {
+            it.contentDescription = getString(R.string.autotap_slot_label, 2)
+            it.setOnClickListener { onTapSlot(2) }
+        }
+        subTap3 = ChildButton(this, ChildButton.Glyph.TEXT, "3").also {
+            it.contentDescription = getString(R.string.autotap_slot_label, 3)
+            it.setOnClickListener { onTapSlot(3) }
         }
     }
 
@@ -446,13 +458,20 @@ class OverlayService : Service() {
         setAutoTapVisual()
     }
 
-    /** 連點 toggle: disabled (dimmed) with no saved points; green while the tap loop is running. */
+    /**
+     * 連點 slot buttons (1/2/3): each disabled (dimmed) with no saved points; the currently running
+     * slot renders green (active). Only one slot is ever active.
+     */
     private fun setAutoTapVisual() {
-        val b = subTapToggle ?: return
-        val hasPoints = SessionStore.loadTapPoints(this).isNotEmpty()
-        b.isEnabled = hasPoints
-        b.dimmed = !hasPoints
-        b.active = AutoTapService.running.value
+        val runningSlot = AutoTapService.running.value
+        listOf(subTap1, subTap2, subTap3).forEachIndexed { i, b ->
+            b ?: return@forEachIndexed
+            val slot = i + 1
+            val hasPoints = SessionStore.loadTapPoints(this, slot).isNotEmpty()
+            b.isEnabled = hasPoints
+            b.dimmed = !hasPoints
+            b.active = runningSlot == slot
+        }
     }
 
     private fun setLockVisual(locked: Boolean) {
@@ -573,7 +592,12 @@ class OverlayService : Service() {
     // 連點 (auto-tap): start/stop toggle + full-screen point picker
     // ---------------------------------------------------------------------------------------
 
-    private fun toggleAutoTap() {
+    /**
+     * Tap a 連點 slot button (1/2/3): start that preset, stopping whatever slot was running (one at a
+     * time). Tapping the already-running slot stops it. Empty slots are disabled, so a no-point tap
+     * is a no-op. Without the accessibility service we can't dispatch taps: guide the user to enable it.
+     */
+    private fun onTapSlot(slot: Int) {
         val svc = AutoTapService.instance
         if (svc == null) {
             Toast.makeText(this, R.string.autotap_need_service, Toast.LENGTH_LONG).show()
@@ -585,12 +609,12 @@ class OverlayService : Service() {
             }
             return
         }
-        if (svc.isRunning) {
+        if (AutoTapService.running.value == slot) {
             svc.stopTapping()
         } else {
-            val points = SessionStore.loadTapPoints(this)
-            if (points.isEmpty()) return   // toggle is disabled anyway
-            svc.startTapping(points)
+            val points = SessionStore.loadTapPoints(this, slot)
+            if (points.isEmpty()) return   // slot is disabled anyway
+            svc.startTapping(slot, points)   // replaces any other running slot
         }
         applyState()
     }
@@ -599,7 +623,8 @@ class OverlayService : Service() {
      * Enter the point picker: a full-screen touch-catching overlay. The hub + joystick are hidden so
      * they can't block the taps, and restored on exit. Existing points start cleared each time.
      */
-    private fun enterAutoTapPick() {
+    private fun enterAutoTapPick(slot: Int) {
+        pickSlot = slot
         if (pickRoot != null) return
         collapse()
         hubView?.visibility = View.GONE
@@ -642,7 +667,7 @@ class OverlayService : Service() {
     }
 
     private fun exitAutoTapPick(save: Boolean) {
-        if (save) pickInner?.let { SessionStore.saveTapPoints(this, it.points) }
+        if (save) pickInner?.let { SessionStore.saveTapPoints(this, pickSlot, it.points) }
         pickRoot?.let { runCatching { windowManager.removeView(it) } }
         pickRoot = null
         pickInner = null
@@ -769,6 +794,8 @@ class OverlayService : Service() {
         const val ACTION_SHOW = "com.dopiz.gpsjoystick.overlay.SHOW"
         const val ACTION_SHOW_ALL = "com.dopiz.gpsjoystick.overlay.SHOW_ALL"
         const val ACTION_HIDE = "com.dopiz.gpsjoystick.overlay.HIDE"
+        const val ACTION_PICK_TAP = "com.dopiz.gpsjoystick.overlay.PICK_TAP"
+        const val EXTRA_SLOT = "slot"
 
         private const val CHANNEL_ID = "overlay_joystick"
         private const val NOTIFICATION_ID = 1002

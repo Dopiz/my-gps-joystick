@@ -172,16 +172,18 @@ object SessionStore {
         return if (x == UNSET || y == UNSET) null else x to y
     }
 
-    // --- 連點（auto-tap）: up to 3 screen points as "x,y;x,y" (screen px). ---
+    // --- 連點（auto-tap）: three presets (slot 1..3), each up to 3 screen points as "x,y;x,y". ---
     private const val K_TAP_POINTS = "tap_points"
 
-    fun saveTapPoints(context: Context, points: List<PointF>) {
+    private fun tapKey(slot: Int) = "${K_TAP_POINTS}_$slot"
+
+    fun saveTapPoints(context: Context, slot: Int, points: List<PointF>) {
         val raw = points.take(3).joinToString(";") { "${it.x},${it.y}" }
-        ui(context).edit().putString(K_TAP_POINTS, raw).apply()
+        ui(context).edit().putString(tapKey(slot), raw).apply()
     }
 
-    fun loadTapPoints(context: Context): List<PointF> {
-        val raw = ui(context).getString(K_TAP_POINTS, "") ?: ""
+    fun loadTapPoints(context: Context, slot: Int): List<PointF> {
+        val raw = ui(context).getString(tapKey(slot), "") ?: ""
         if (raw.isBlank()) return emptyList()
         return raw.split(";").mapNotNull { pair ->
             val parts = pair.split(",")

@@ -63,8 +63,12 @@
     <string name="autotap_cancel">取消</string>
     <string name="autotap_need_service">請先在無障礙設定啟用連點服務</string>
     <string name="overlay_autotap">連點</string>
-    <string name="overlay_autotap_set">設定點位</string>
-    <string name="overlay_autotap_toggle">連點開始／停止</string>
+    <string name="section_autotap">連點設定</string>
+    <string name="autotap_slot_label">設定 %1$d</string>
+    <string name="autotap_slot_unset">未設定</string>
+    <string name="autotap_slot_count">%1$d 個點</string>
+    <string name="autotap_record">錄製</string>
+    <string name="autotap_need_overlay">請先授予懸浮窗權限才能錄製點位</string>
 
     <!-- Feature 1: speed presets + dual-unit speed readout -->
     <string name="speed_preset_walk">走 5</string>

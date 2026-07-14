@@ -38,21 +38,24 @@ class AutoTapService : AccessibilityService() {
         }
     }
 
-    val isRunning: Boolean get() = _running.value
+    val isRunning: Boolean get() = _running.value != null
 
-    /** Start the fixed-interval tap loop over [pts] (screen-absolute coords). No-op if empty. */
-    fun startTapping(pts: List<PointF>) {
+    /**
+     * Start the fixed-interval tap loop over [pts] (screen-absolute coords) for preset [slot].
+     * No-op if empty. Replaces any loop already running (only one slot can be active at a time).
+     */
+    fun startTapping(slot: Int, pts: List<PointF>) {
         if (pts.isEmpty()) return
         points = pts
         index = 0
         handler.removeCallbacks(tick)
         handler.post(tick)
-        _running.value = true
+        _running.value = slot
     }
 
     fun stopTapping() {
         handler.removeCallbacks(tick)
-        _running.value = false
+        _running.value = null
     }
 
     private fun tapAt(x: Float, y: Float) {
@@ -86,8 +89,9 @@ class AutoTapService : AccessibilityService() {
     companion object {
         private const val INTERVAL_MS = 250L
 
-        private val _running = MutableStateFlow(false)
-        val running: StateFlow<Boolean> = _running.asStateFlow()
+        // Active preset slot (1..3) while the tap loop runs, or null when stopped.
+        private val _running = MutableStateFlow<Int?>(null)
+        val running: StateFlow<Int?> = _running.asStateFlow()
 
         /** Live service instance while enabled, else null (auto-tap unavailable). */
         var instance: AutoTapService? = null
