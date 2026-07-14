@@ -14,104 +14,18 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- App logo, centred at the very top. -->
-        <ImageView
+        <!-- App logo, centred at the very top; rounded-square clip like a launcher icon. -->
+        <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/logoImage"
             android:layout_width="88dp"
             android:layout_height="88dp"
             android:layout_gravity="center_horizontal"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="8dp"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="20dp"
             android:src="@mipmap/ic_launcher"
+            android:scaleType="centerCrop"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.GpsJoystick.Logo"
             android:contentDescription="@string/app_name" />
-
-        <!-- Onboarding stepper card -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/onboardingCard"
-            style="@style/Widget.GpsJoystick.Card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/onboardingTitle"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/onboarding_title"
-                    android:textAppearance="@style/TextAppearance.GpsJoystick.Title" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginTop="12dp">
-
-                    <ImageView
-                        android:id="@+id/stepIcon1"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@drawable/ic_step_todo"
-                        android:contentDescription="@string/onboarding_step1" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
-                        android:text="@string/onboarding_step1"
-                        android:textAppearance="@style/TextAppearance.GpsJoystick.Body" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginTop="8dp">
-
-                    <ImageView
-                        android:id="@+id/stepIcon2"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@drawable/ic_step_todo"
-                        android:contentDescription="@string/onboarding_step2" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
-                        android:text="@string/onboarding_step2"
-                        android:textAppearance="@style/TextAppearance.GpsJoystick.Body" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginTop="8dp">
-
-                    <ImageView
-                        android:id="@+id/stepIcon3"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@drawable/ic_step_todo"
-                        android:contentDescription="@string/onboarding_step3" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
-                        android:text="@string/onboarding_step3"
-                        android:textAppearance="@style/TextAppearance.GpsJoystick.Body" />
-                </LinearLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
 
         <!-- Permissions — reordered at runtime: first section while any gate is
              missing, moved to the bottom once all three are granted. -->
@@ -127,12 +41,30 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
-                <TextView
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/section_permissions"
-                    android:textAppearance="@style/TextAppearance.GpsJoystick.Title"
-                    android:paddingBottom="8dp" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingBottom="8dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/section_permissions"
+                        android:textAppearance="@style/TextAppearance.GpsJoystick.Title" />
+
+                    <!-- Green check, shown only when all three gates are granted. -->
+                    <ImageView
+                        android:id="@+id/permissionsCheck"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_marginStart="8dp"
+                        android:src="@drawable/ic_step_done"
+                        android:visibility="gone"
+                        android:contentDescription="@string/section_permissions" />
+                </LinearLayout>
 
                 <!-- One row per permission: description on the left, a right-aligned action
                      button on the right. All three buttons share a fixed width so their left

@@ -153,23 +153,14 @@ class MainActivity : AppCompatActivity() {
         renderPermissions()
     }
 
-    private fun renderPermissions() {
-        renderOnboarding(PermissionChecker.status(this))
-    }
-
     /**
-     * First-run guidance (Slice 11): while any of the three setup gates is missing, show a
-     * banner listing the outstanding steps; the existing grant buttons perform the jumps. Once
-     * everything is in place it collapses to a short "done" note.
+     * Reflect setup state on the 權限設定 section: a green check appears in its title row once all
+     * three gates are granted, and the card demotes itself to the bottom of the page.
      */
-    private fun renderOnboarding(p: PermissionChecker.Status) {
+    private fun renderPermissions() {
+        val p = PermissionChecker.status(this)
         val allReady = p.locationGranted && p.isMockAppSelected && p.overlayGranted
-        binding.onboardingTitle.setText(
-            if (allReady) R.string.onboarding_done else R.string.onboarding_title
-        )
-        stepIcon(binding.stepIcon1, p.locationGranted)
-        stepIcon(binding.stepIcon2, p.isMockAppSelected)
-        stepIcon(binding.stepIcon3, p.overlayGranted)
+        binding.permissionsCheck.visibility = if (allReady) View.VISIBLE else View.GONE
         reorderPermissions(allReady)
     }
 
@@ -185,10 +176,6 @@ class MainActivity : AppCompatActivity() {
         if (root.indexOfChild(card) == desiredIndex) return
         root.removeView(card)
         if (allReady) root.addView(card) else root.addView(card, 1)
-    }
-
-    private fun stepIcon(view: android.widget.ImageView, done: Boolean) {
-        view.setImageResource(if (done) R.drawable.ic_step_done else R.drawable.ic_step_todo)
     }
 
     private fun maybeRequestNotifications() {

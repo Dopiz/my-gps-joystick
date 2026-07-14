@@ -129,4 +129,10 @@
         <item name="android:fontFamily">monospace</item>
         <item name="android:textColor">@color/on_surface_variant</item>
     </style>
+
+    <!-- Rounded-square clip for the app logo, mimicking a launcher icon (≈24% of 88dp). -->
+    <style name="ShapeAppearance.GpsJoystick.Logo" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">21dp</item>
+    </style>
 </resources>

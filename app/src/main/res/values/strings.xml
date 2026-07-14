@@ -147,13 +147,6 @@
     <string name="gpx_export_failed">匯出失敗</string>
     <string name="gpx_menu">更多操作</string>
 
-    <!-- Onboarding (Slice 11) -->
-    <string name="onboarding_title">首次設定（3 步）</string>
-    <string name="onboarding_step1">授予定位權限</string>
-    <string name="onboarding_step2">開發者選項 → 選擇模擬位置應用程式 → 選本 app</string>
-    <string name="onboarding_step3">授予懸浮窗權限（搖桿用）</string>
-    <string name="onboarding_done">全部設定完成，可以開始使用了。</string>
-
     <!-- Section headers -->
     <string name="section_permissions">權限設定</string>
     <string name="section_position">模擬定位</string>
