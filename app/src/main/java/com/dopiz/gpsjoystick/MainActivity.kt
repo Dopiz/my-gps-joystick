@@ -142,9 +142,9 @@ class MainActivity : AppCompatActivity() {
         } else {
             binding.errorText.visibility = View.GONE
         }
-        // Button 1 reflects the live mock state: orange 開始模擬 on real GPS,
+        // Button 1 reflects the live mock state: blue 開始模擬 on real GPS,
         // green 停止模擬 while mocking, so the user can tell at a glance.
-        val activeColor = if (s.isRunning) R.color.status_active else R.color.brand_tertiary
+        val activeColor = if (s.isRunning) R.color.status_active else R.color.brand_primary
         binding.btnMockToggle.backgroundTintList =
             ColorStateList.valueOf(getColor(activeColor))
         binding.btnMockToggle.setText(
@@ -161,6 +161,12 @@ class MainActivity : AppCompatActivity() {
         val p = PermissionChecker.status(this)
         val allReady = p.locationGranted && p.isMockAppSelected && p.overlayGranted
         binding.permissionsCheck.visibility = if (allReady) View.VISIBLE else View.GONE
+        val doneOrCross = { granted: Boolean ->
+            if (granted) R.drawable.ic_step_done else R.drawable.ic_step_cross
+        }
+        binding.permStatusLocation.setImageResource(doneOrCross(p.locationGranted))
+        binding.permStatusMock.setImageResource(doneOrCross(p.isMockAppSelected))
+        binding.permStatusOverlay.setImageResource(doneOrCross(p.overlayGranted))
         reorderPermissions(allReady)
     }
 
