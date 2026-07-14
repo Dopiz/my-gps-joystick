@@ -10,8 +10,8 @@ import android.view.View
 
 /**
  * 連點選點層的畫布：全螢幕吃觸控，使用者每點一下放一個帶編號（1/2/3）的綠色圓形標記，最多 3 個。
- * 座標以螢幕絕對座標（rawX/rawY）記錄，供 [AutoTapService] dispatchGesture 使用；因為承載的視窗以
- * FLAG_LAYOUT_NO_LIMITS 覆蓋整個螢幕，view 內座標與螢幕座標一致，畫標記與存座標可共用同一組值。
+ * 座標以螢幕絕對座標（rawX/rawY）記錄，供 [AutoTapService] dispatchGesture 使用；視窗不一定從
+ * 螢幕 (0,0) 開始（例如未蓋到狀態列），畫標記時要扣掉視窗在螢幕上的偏移，標記才會落在手指點的位置。
  */
 class TapPickView(context: Context) : View(context) {
 
@@ -48,14 +48,20 @@ class TapPickView(context: Context) : View(context) {
         invalidate()
     }
 
+    private val screenLoc = IntArray(2)
+
     override fun onDraw(canvas: Canvas) {
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dim)
+        // points 存的是螢幕絕對座標；扣掉本 view 在螢幕上的位置換回 view 座標再畫。
+        getLocationOnScreen(screenLoc)
         val r = 14f * density
         val fm = label.fontMetrics
         points.forEachIndexed { i, p ->
-            canvas.drawCircle(p.x, p.y, r, disc)
-            canvas.drawCircle(p.x, p.y, r, ring)
-            canvas.drawText("${i + 1}", p.x, p.y - (fm.ascent + fm.descent) / 2f, label)
+            val x = p.x - screenLoc[0]
+            val y = p.y - screenLoc[1]
+            canvas.drawCircle(x, y, r, disc)
+            canvas.drawCircle(x, y, r, ring)
+            canvas.drawText("${i + 1}", x, y - (fm.ascent + fm.descent) / 2f, label)
         }
     }
 }
