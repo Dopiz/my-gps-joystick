@@ -4,6 +4,9 @@
     <string name="grant_location">Location</string>
     <string name="set_mock_app">Mock</string>
     <string name="grant_overlay">Overlay</string>
+    <string name="perm_desc_location">定位權限：讀取並模擬 GPS 位置</string>
+    <string name="perm_desc_mock">模擬位置 app：開發者選項中設為本 app</string>
+    <string name="perm_desc_overlay">懸浮窗權限：顯示懸浮搖桿與選單</string>
     <string name="hint_lat">Latitude (e.g. 25.0339)</string>
     <string name="hint_lng">Longitude (e.g. 121.5645)</string>
     <string name="start">Start</string>

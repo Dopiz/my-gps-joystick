@@ -64,13 +64,14 @@ class OverlayService : Service() {
     private var subWalk: ChildButton? = null
     private var subRun: ChildButton? = null
     private var subCar: ChildButton? = null
+    private var subCustom: ChildButton? = null
     private var subMapOpen: ChildButton? = null
     private var subGpx: ChildButton? = null
     private var subTap1: ChildButton? = null
     private var subTap2: ChildButton? = null
     private var subTap3: ChildButton? = null
     private val columnButtons get() = listOfNotNull(btnMap, btnJoystick, btnLock, btnAutoTap, btnSpeed)
-    private val speedSubs get() = listOfNotNull(subWalk, subRun, subCar)
+    private val speedSubs get() = listOfNotNull(subWalk, subRun, subCar, subCustom)
     private val mapSubs get() = listOfNotNull(subMapOpen, subGpx)
     private val tapSubs get() = listOfNotNull(subTap1, subTap2, subTap3)
 
@@ -169,8 +170,10 @@ class OverlayService : Service() {
         // Apply the persisted speed on startup so the app opens at the last speed (shared SpeedModel
         // → the map reflects it too). Don't clobber a live running session.
         if (!MockLocationService.state.value.isRunning) {
-            val chip = SessionStore.loadSpeedChip(this)
-            if (chip in PRESET_KMH.indices) MockLocationService.setSpeed(PRESET_KMH[chip] / 3.6)
+            when (val chip = SessionStore.loadSpeedChip(this)) {
+                in PRESET_KMH.indices -> MockLocationService.setSpeed(PRESET_KMH[chip] / 3.6)
+                CUSTOM_CHIP -> MockLocationService.setSpeed(SessionStore.loadCustomKmh(this) / 3.6)
+            }
         }
 
         applyState()
@@ -206,6 +209,10 @@ class OverlayService : Service() {
         }
         subCar = ChildButton(this, ChildButton.Glyph.CAR).also {
             it.setOnClickListener { selectSpeed(2) }
+        }
+        subCustom = ChildButton(this, ChildButton.Glyph.TUNE).also {
+            it.contentDescription = getString(R.string.speed_preset_custom)
+            it.setOnClickListener { selectCustomSpeed() }
         }
         subMapOpen = ChildButton(this, ChildButton.Glyph.MAP_OPEN).also {
             it.contentDescription = getString(R.string.overlay_open_map_page)
@@ -486,13 +493,14 @@ class OverlayService : Service() {
         subWalk?.active = idx == 0
         subRun?.active = idx == 1
         subCar?.active = idx == 2
+        subCustom?.active = idx == -1
         val b = btnSpeed ?: return
-        b.active = idx in 0..2
+        b.active = true          // a speed is always selected (preset or custom)
         b.glyph = when (idx) {
             0 -> ChildButton.Glyph.WALK
             1 -> ChildButton.Glyph.RUN
             2 -> ChildButton.Glyph.CAR
-            else -> ChildButton.Glyph.SPEED
+            else -> ChildButton.Glyph.TUNE
         }
         b.invalidate()
     }
@@ -523,6 +531,12 @@ class OverlayService : Service() {
         MockLocationService.setSpeed(PRESET_KMH[idx] / 3.6)
         // Unify with the map's speed chip persistence so both stay in sync.
         SessionStore.saveSpeedChip(this, idx)
+    }
+
+    /** 自訂 sub-button: apply the last-saved custom km/h (or the persisted default) and remember it. */
+    private fun selectCustomSpeed() {
+        MockLocationService.setSpeed(SessionStore.loadCustomKmh(this) / 3.6)
+        SessionStore.saveSpeedChip(this, CUSTOM_CHIP)
     }
 
     // ---------------------------------------------------------------------------------------
@@ -805,6 +819,9 @@ class OverlayService : Service() {
 
         /** Speed presets in km/h, in sub-row order 走 / 跑 / 車 — matches MapActivity chips. */
         private val PRESET_KMH = listOf(5.0, 15.0, 40.0)
+
+        /** Speed-chip index reserved for 自訂 (custom), matching MapActivity's index 3. */
+        private const val CUSTOM_CHIP = 3
 
         fun show(context: Context) {
             context.startService(Intent(context, OverlayService::class.java).setAction(ACTION_SHOW))

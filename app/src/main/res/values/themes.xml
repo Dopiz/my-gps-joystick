@@ -65,6 +65,17 @@
         <item name="android:minHeight">48dp</item>
     </style>
 
+    <!-- Compact tonal: smaller height/text for right-aligned per-row action buttons (權限設定). -->
+    <style name="Widget.GpsJoystick.Button.TonalSmall" parent="Widget.Material3.Button.TonalButton">
+        <item name="android:minHeight">36dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:paddingLeft">12dp</item>
+        <item name="android:paddingRight">12dp</item>
+    </style>
+
     <!-- Secondary action: outlined. -->
     <style name="Widget.GpsJoystick.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
         <item name="android:minHeight">48dp</item>

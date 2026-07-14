@@ -127,37 +127,74 @@
                     android:textAppearance="@style/TextAppearance.GpsJoystick.Title"
                     android:paddingBottom="8dp" />
 
+                <!-- One row per permission: description on the left, a right-aligned action
+                     button on the right. All three buttons share a fixed width so their left
+                     edges line up as a neat right-hand column. -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="12dp"
+                        android:text="@string/perm_desc_location"
+                        android:textAppearance="@style/TextAppearance.GpsJoystick.Body" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnGrantLocation"
-                        style="@style/Widget.GpsJoystick.Button.Tonal"
+                        style="@style/Widget.GpsJoystick.Button.TonalSmall"
+                        android:layout_width="96dp"
+                        android:layout_height="wrap_content"
+                        android:text="@string/grant_location" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:layout_marginEnd="4dp"
-                        android:text="@string/grant_location" />
+                        android:layout_marginEnd="12dp"
+                        android:text="@string/perm_desc_mock"
+                        android:textAppearance="@style/TextAppearance.GpsJoystick.Body" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnSetMockApp"
-                        style="@style/Widget.GpsJoystick.Button.Tonal"
+                        style="@style/Widget.GpsJoystick.Button.TonalSmall"
+                        android:layout_width="96dp"
+                        android:layout_height="wrap_content"
+                        android:text="@string/set_mock_app" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:layout_marginStart="4dp"
-                        android:layout_marginEnd="4dp"
-                        android:text="@string/set_mock_app" />
+                        android:layout_marginEnd="12dp"
+                        android:text="@string/perm_desc_overlay"
+                        android:textAppearance="@style/TextAppearance.GpsJoystick.Body" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnGrantOverlay"
-                        style="@style/Widget.GpsJoystick.Button.Tonal"
-                        android:layout_width="0dp"
+                        style="@style/Widget.GpsJoystick.Button.TonalSmall"
+                        android:layout_width="96dp"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginStart="4dp"
                         android:text="@string/grant_overlay" />
                 </LinearLayout>
             </LinearLayout>

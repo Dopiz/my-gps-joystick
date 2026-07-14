@@ -40,8 +40,8 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
 
     /** How far the column reaches past the hub centre (down or up). */
     val vReachPx: Float = firstOffsetPx + (columnCount - 1) * stepPx + childPx / 2f + marginPx
-    /** How far a horizontal sub-row reaches past the hub centre (right or left, up to 3 subs). */
-    val hReachPx: Float = 3 * stepPx + childPx / 2f + marginPx
+    /** How far a horizontal sub-row reaches past the hub centre (right or left, up to 4 subs: 速度 走/跑/車/自訂). */
+    val hReachPx: Float = 4 * stepPx + childPx / 2f + marginPx
 
     // --- Callbacks wired by the service ---
     var onHubDrag: (dx: Float, dy: Float) -> Unit = { _, _ -> }
