@@ -160,7 +160,6 @@ class MainActivity : AppCompatActivity() {
     private fun renderPermissions() {
         val p = PermissionChecker.status(this)
         val allReady = p.locationGranted && p.isMockAppSelected && p.overlayGranted
-        binding.permissionsCheck.visibility = if (allReady) View.VISIBLE else View.GONE
         val doneOrCross = { granted: Boolean ->
             if (granted) R.drawable.ic_step_done else R.drawable.ic_step_cross
         }

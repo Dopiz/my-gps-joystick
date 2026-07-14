@@ -14,31 +14,42 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- App logo, centred at the very top; rounded-square clip like a launcher icon. -->
-        <com.google.android.material.imageview.ShapeableImageView
-            android:id="@+id/logoImage"
-            android:layout_width="88dp"
-            android:layout_height="88dp"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="32dp"
-            android:layout_marginBottom="14dp"
-            android:src="@mipmap/ic_launcher"
-            android:scaleType="centerCrop"
-            app:shapeAppearanceOverlay="@style/ShapeAppearance.GpsJoystick.Logo"
-            android:contentDescription="@string/app_name" />
-
-        <!-- App name headline, centred directly under the logo (store-style header). -->
-        <TextView
-            android:id="@+id/appNameHeader"
-            android:layout_width="wrap_content"
+        <!-- Header group: logo + app name, kept together as one block so runtime
+             reordering (reorderPermissions) can insert the permissions card right
+             after it without splitting the two views apart. -->
+        <LinearLayout
+            android:id="@+id/headerGroup"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="28dp"
-            android:text="@string/app_name"
-            android:textColor="@color/on_surface"
-            android:textSize="26sp"
-            android:textStyle="bold"
-            android:gravity="center" />
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
+
+            <!-- App logo, centred at the very top; rounded-square clip like a launcher icon. -->
+            <com.google.android.material.imageview.ShapeableImageView
+                android:id="@+id/logoImage"
+                android:layout_width="88dp"
+                android:layout_height="88dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="32dp"
+                android:layout_marginBottom="14dp"
+                android:src="@mipmap/ic_launcher"
+                android:scaleType="centerCrop"
+                app:shapeAppearanceOverlay="@style/ShapeAppearance.GpsJoystick.Logo"
+                android:contentDescription="@string/app_name" />
+
+            <!-- App name headline, centred directly under the logo (store-style header). -->
+            <TextView
+                android:id="@+id/appNameHeader"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginBottom="28dp"
+                android:text="@string/app_name"
+                android:textColor="@color/on_surface"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                android:gravity="center" />
+        </LinearLayout>
 
         <!-- Permissions — reordered at runtime: first section while any gate is
              missing, moved to the bottom once all three are granted. -->
@@ -67,16 +78,6 @@
                         android:layout_weight="1"
                         android:text="@string/section_permissions"
                         android:textAppearance="@style/TextAppearance.GpsJoystick.Title" />
-
-                    <!-- Green check, shown only when all three gates are granted. -->
-                    <ImageView
-                        android:id="@+id/permissionsCheck"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:layout_marginStart="8dp"
-                        android:src="@drawable/ic_step_done"
-                        android:visibility="gone"
-                        android:contentDescription="@string/section_permissions" />
                 </LinearLayout>
 
                 <!-- One row per permission: description on the left, a right-aligned action

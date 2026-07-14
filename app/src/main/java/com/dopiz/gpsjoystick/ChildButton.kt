@@ -175,7 +175,7 @@ class ChildButton(
             path.reset()
             path.addCircle(cx, cy, r, Path.Direction.CW)
             canvas.clipPath(path)
-            val half = r * 1.32f
+            val half = r * 1.10f
             appIcon.setBounds((cx - half).toInt(), (cy - half).toInt(),
                 (cx + half).toInt(), (cy + half).toInt())
             appIcon.draw(canvas)
