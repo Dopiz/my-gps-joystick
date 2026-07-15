@@ -4,6 +4,9 @@
     <string name="grant_location">Location</string>
     <string name="set_mock_app">Mock</string>
     <string name="grant_overlay">Overlay</string>
+    <string name="perm_desc_location">定位權限：讀取並模擬 GPS 位置</string>
+    <string name="perm_desc_mock">模擬位置：開發者選項中設為本 app</string>
+    <string name="perm_desc_overlay">懸浮視窗：顯示懸浮搖桿與選單</string>
     <string name="hint_lat">Latitude (e.g. 25.0339)</string>
     <string name="hint_lng">Longitude (e.g. 121.5645)</string>
     <string name="start">Start</string>
@@ -53,6 +56,22 @@
     <string name="overlay_open_map_page">開啟地圖頁</string>
     <string name="overlay_gpx_toggle">GPX 開始／暫停</string>
     <string name="gpx_toggle_need_perm">請先在主畫面授予定位權限並設為模擬位置 app</string>
+
+    <!-- 連點（auto-tap） -->
+    <string name="autotap_service_label">連點</string>
+    <string name="autotap_service_desc">用於連點功能：對已儲存的螢幕位置送出點擊。</string>
+    <string name="autotap_pick_hint">點擊最多 3 個位置，完成後按儲存</string>
+    <string name="autotap_clear">清除</string>
+    <string name="autotap_save">儲存</string>
+    <string name="autotap_cancel">取消</string>
+    <string name="autotap_need_service">請先在無障礙設定啟用連點服務</string>
+    <string name="overlay_autotap">連點</string>
+    <string name="section_autotap">連點設定</string>
+    <string name="autotap_slot_label">設定 %1$d</string>
+    <string name="autotap_slot_unset">未設定</string>
+    <string name="autotap_slot_count">%1$d 個點</string>
+    <string name="autotap_record">錄製</string>
+    <string name="autotap_need_overlay">請先授予懸浮窗權限才能錄製點位</string>
 
     <!-- Feature 1: speed presets + dual-unit speed readout -->
     <string name="speed_preset_walk">走 5</string>
@@ -127,13 +146,6 @@
     <string name="gpx_export_ok">已匯出「%1$s」</string>
     <string name="gpx_export_failed">匯出失敗</string>
     <string name="gpx_menu">更多操作</string>
-
-    <!-- Onboarding (Slice 11) -->
-    <string name="onboarding_title">首次設定（3 步）</string>
-    <string name="onboarding_step1">授予定位權限</string>
-    <string name="onboarding_step2">開發者選項 → 選擇模擬位置應用程式 → 選本 app</string>
-    <string name="onboarding_step3">授予懸浮窗權限（搖桿用）</string>
-    <string name="onboarding_done">全部設定完成，可以開始使用了。</string>
 
     <!-- Section headers -->
     <string name="section_permissions">權限設定</string>

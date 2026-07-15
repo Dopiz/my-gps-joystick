@@ -26,7 +26,7 @@ class ChildButton(
     private val label: String? = null,
 ) : View(context) {
 
-    enum class Glyph { HUB, JOYSTICK, PLAY, PAUSE, SPEED, TEXT, WALK, RUN, CAR, MAP, MAP_OPEN, LOCK, LOCK_OPEN }
+    enum class Glyph { HUB, JOYSTICK, PLAY, PAUSE, SPEED, TEXT, WALK, RUN, CAR, MAP, MAP_OPEN, LOCK, LOCK_OPEN, TAP, TARGET, TUNE }
 
     /** Green ring highlight (e.g. joystick visible, current speed bucket). */
     var active: Boolean = false
@@ -106,6 +106,9 @@ class ChildButton(
             Glyph.MAP_OPEN -> MAP_OPEN_PATH
             Glyph.LOCK -> LOCK_PATH
             Glyph.LOCK_OPEN -> LOCK_OPEN_PATH
+            Glyph.TAP -> TAP_PATH
+            Glyph.TARGET -> TARGET_PATH
+            Glyph.TUNE -> TUNE_PATH
             else -> null
         }
         data?.let { PathParser.createPathFromPathData(it) }
@@ -166,13 +169,13 @@ class ChildButton(
         fillPaint.clearShadowLayer()
 
         // Collapsed hub: render the app launcher icon, clipped to the circle so it reads as a
-        // round app icon filling the disc. Oversize slightly so the foreground glyph reaches the rim.
+        // round app icon. Inset slightly (< disc radius) so the icon art doesn't touch the rim.
         if (collapsedHub && appIcon != null) {
             val save = canvas.save()
             path.reset()
             path.addCircle(cx, cy, r, Path.Direction.CW)
             canvas.clipPath(path)
-            val half = r * 1.55f
+            val half = r * 1.10f
             appIcon.setBounds((cx - half).toInt(), (cy - half).toInt(),
                 (cx + half).toInt(), (cy + half).toInt())
             appIcon.draw(canvas)
@@ -288,5 +291,22 @@ class ChildButton(
             "M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 " +
             "6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 " +
             "2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2z"
+        // touch_app — a finger tapping the screen (連點 child + 開始／停止 toggle).
+        const val TAP_PATH =
+            "M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 " +
+            "13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-" +
+            ".11-.54-.11H13v-6C13 6.67 12.33 6 11.5 6S10 6.67 10 7.5v10.74l-3.43-.72c-.08-.01-.15-." +
+            "03-.24-.03-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-." +
+            "55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.91-1.38z"
+        // tune — sliders (自訂速度 sub).
+        const val TUNE_PATH =
+            "M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H1" +
+            "1v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"
+        // gps_fixed — a crosshair/target (設定點位 sub).
+        const val TARGET_PATH =
+            "M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-" +
+            "7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V" +
+            "23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7" +
+            "-7 7 3.13 7 7-3.13 7-7 7z"
     }
 }

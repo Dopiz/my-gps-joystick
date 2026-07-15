@@ -32,15 +32,16 @@ class RadialMenuView(context: Context) : FrameLayout(context) {
     val firstOffsetPx: Float = hubPx / 2f + childPx / 2f + gapPx
     private val marginPx: Float = dp(16f)               // shadow + breathing room at the far edge
 
-    // Vertical column: 地圖 / 搖桿 / 鎖定 / 速度 (4 children). Speed sits at the outer end so its
+    // Vertical column: 地圖 / 搖桿 / 鎖定 / 連點 / 速度 (5 children). Speed sits at the outer end so its
     // 走/跑/車 sub-row fans further out without colliding with the others.
-    val columnCount = 4
+    val columnCount = 5
+    val autoTapIndex = 3
     val speedIndex = columnCount - 1
 
     /** How far the column reaches past the hub centre (down or up). */
     val vReachPx: Float = firstOffsetPx + (columnCount - 1) * stepPx + childPx / 2f + marginPx
-    /** How far a horizontal sub-row reaches past the hub centre (right or left, up to 3 subs). */
-    val hReachPx: Float = 3 * stepPx + childPx / 2f + marginPx
+    /** How far a horizontal sub-row reaches past the hub centre (right or left, up to 4 subs: 速度 走/跑/車/自訂). */
+    val hReachPx: Float = 4 * stepPx + childPx / 2f + marginPx
 
     // --- Callbacks wired by the service ---
     var onHubDrag: (dx: Float, dy: Float) -> Unit = { _, _ -> }
