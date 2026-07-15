@@ -72,6 +72,7 @@
     <string name="autotap_slot_count">%1$d 個點</string>
     <string name="autotap_record">錄製</string>
     <string name="autotap_need_overlay">請先授予懸浮窗權限才能錄製點位</string>
+    <string name="autotap_slot_recording">重新錄製設定 %1$d…</string>
 
     <!-- Feature 1: speed presets + dual-unit speed readout -->
     <string name="speed_preset_walk">走 5</string>
