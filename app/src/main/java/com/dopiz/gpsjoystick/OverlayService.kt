@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -226,14 +227,17 @@ class OverlayService : Service() {
         subTap1 = ChildButton(this, ChildButton.Glyph.TEXT, "1").also {
             it.contentDescription = getString(R.string.autotap_slot_label, 1)
             it.setOnClickListener { onTapSlot(1) }
+            it.setOnLongClickListener { v -> v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS); onTapSlotLongPress(1); true }
         }
         subTap2 = ChildButton(this, ChildButton.Glyph.TEXT, "2").also {
             it.contentDescription = getString(R.string.autotap_slot_label, 2)
             it.setOnClickListener { onTapSlot(2) }
+            it.setOnLongClickListener { v -> v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS); onTapSlotLongPress(2); true }
         }
         subTap3 = ChildButton(this, ChildButton.Glyph.TEXT, "3").also {
             it.contentDescription = getString(R.string.autotap_slot_label, 3)
             it.setOnClickListener { onTapSlot(3) }
+            it.setOnLongClickListener { v -> v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS); onTapSlotLongPress(3); true }
         }
     }
 
@@ -475,7 +479,9 @@ class OverlayService : Service() {
             b ?: return@forEachIndexed
             val slot = i + 1
             val hasPoints = SessionStore.loadTapPoints(this, slot).isNotEmpty()
-            b.isEnabled = hasPoints
+            // Keep enabled even when empty so a long-press can still open recording; the empty look
+            // stays dimmed and a short tap is a no-op (see onTapSlot). Disabling would swallow touches.
+            b.isEnabled = true
             b.dimmed = !hasPoints
             b.active = runningSlot == slot
         }
@@ -631,6 +637,18 @@ class OverlayService : Service() {
             svc.startTapping(slot, points)   // replaces any other running slot
         }
         applyState()
+    }
+
+    /**
+     * Long-press a 連點 slot button (1/2/3): re-record its points in-place without leaving the current
+     * screen. If that slot is currently tapping, stop it first, then open the full-screen picker
+     * (which overwrites the slot on save). Works on empty (dimmed) slots too, so new slots can be
+     * recorded here as well.
+     */
+    private fun onTapSlotLongPress(slot: Int) {
+        if (AutoTapService.running.value == slot) AutoTapService.instance?.stopTapping()
+        Toast.makeText(this, getString(R.string.autotap_slot_recording, slot), Toast.LENGTH_SHORT).show()
+        enterAutoTapPick(slot)
     }
 
     /**
