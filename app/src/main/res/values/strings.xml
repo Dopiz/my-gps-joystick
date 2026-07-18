@@ -124,6 +124,11 @@
     <string name="fav_delete">刪除</string>
     <string name="fav_name_title">命名收藏</string>
     <string name="fav_name_hint">名稱</string>
+    <string name="fav_export_empty">尚無收藏可匯出</string>
+    <string name="fav_export_ok">已匯出 %1$d 筆</string>
+    <string name="fav_export_failed">匯出失敗</string>
+    <string name="fav_imported">已匯入 %1$d 筆（略過 %2$d 筆重複）</string>
+    <string name="fav_import_failed">匯入失敗：%1$s</string>
     <string name="dialog_save">儲存</string>
     <string name="dialog_cancel">取消</string>
     <string name="pin_dropped">已在 %1$s, %2$s 放置圖釘並瞬移</string>

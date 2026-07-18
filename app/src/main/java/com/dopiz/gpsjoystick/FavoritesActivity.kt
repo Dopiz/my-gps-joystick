@@ -2,6 +2,7 @@ package com.dopiz.gpsjoystick
 
 import android.app.Activity
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -10,11 +11,15 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Favorites as a full screen, mirroring [GpxLibraryActivity]: a Material Toolbar (back + title),
@@ -27,6 +32,16 @@ class FavoritesActivity : AppCompatActivity() {
     private lateinit var listContainer: LinearLayout
     private lateinit var emptyHint: TextView
 
+    private val importLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            uri?.let { doImport(it) }
+        }
+
+    private val exportLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+            uri?.let { doExport(it) }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_favorites)
@@ -38,6 +53,50 @@ class FavoritesActivity : AppCompatActivity() {
 
         listContainer = findViewById(R.id.listContainer)
         emptyHint = findViewById(R.id.emptyHint)
+
+        findViewById<MaterialButton>(R.id.btnExport).setOnClickListener {
+            if (FavoritesStore.list(this).isEmpty()) {
+                Toast.makeText(this, R.string.fav_export_empty, Toast.LENGTH_SHORT).show()
+            } else {
+                val stamp = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
+                exportLauncher.launch("favorites-$stamp.json")
+            }
+        }
+        findViewById<MaterialButton>(R.id.btnImport).setOnClickListener {
+            importLauncher.launch(arrayOf("application/json", "*/*"))
+        }
+    }
+
+    private fun doExport(dest: Uri) {
+        val json = FavoritesStore.exportJson(this)
+        val count = FavoritesStore.list(this).size
+        val ok = runCatching {
+            contentResolver.openOutputStream(dest)?.use { it.write(json.toByteArray()) }
+                ?: throw java.io.IOException("no stream")
+        }.isSuccess
+        Toast.makeText(
+            this,
+            if (ok) getString(R.string.fav_export_ok, count) else getString(R.string.fav_export_failed),
+            Toast.LENGTH_SHORT,
+        ).show()
+    }
+
+    private fun doImport(uri: Uri) {
+        val result = runCatching {
+            val json = contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
+                ?: throw java.io.IOException("no stream")
+            FavoritesStore.importMerged(this, json)
+        }
+        result.onSuccess { (imported, skipped) ->
+            Toast.makeText(
+                this, getString(R.string.fav_imported, imported, skipped), Toast.LENGTH_SHORT
+            ).show()
+            render()
+        }.onFailure { e ->
+            Toast.makeText(
+                this, getString(R.string.fav_import_failed, e.message ?: "?"), Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     override fun onResume() {

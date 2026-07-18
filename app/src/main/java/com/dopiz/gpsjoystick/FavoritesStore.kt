@@ -48,6 +48,41 @@ object FavoritesStore {
         }
     }
 
+    /** Serialize every favorite to a JSON array string [{label, lat, lng}, ...]. */
+    fun exportJson(context: Context): String {
+        val arr = JSONArray()
+        list(context).forEach { f ->
+            arr.put(JSONObject().put("label", f.label).put("lat", f.lat).put("lng", f.lng))
+        }
+        return arr.toString()
+    }
+
+    /**
+     * Merge favorites parsed from [json] into the current list, skipping entries whose
+     * label+lat+lng exactly match an existing one. Returns (imported, skipped).
+     * Throws on malformed JSON / missing fields.
+     */
+    fun importMerged(context: Context, json: String): Pair<Int, Int> {
+        val arr = JSONArray(json)
+        val items = list(context).toMutableList()
+        val existing = items.map { Triple(it.label, it.lat, it.lng) }.toMutableSet()
+        var imported = 0
+        var skipped = 0
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            val fav = Fav(o.getDouble("lat"), o.getDouble("lng"), o.optString("label"))
+            val key = Triple(fav.label, fav.lat, fav.lng)
+            if (existing.add(key)) {
+                items.add(fav)
+                imported++
+            } else {
+                skipped++
+            }
+        }
+        if (imported > 0) persist(context, items)
+        return imported to skipped
+    }
+
     private fun persist(context: Context, items: List<Fav>) {
         val arr = JSONArray()
         items.forEach { f ->
