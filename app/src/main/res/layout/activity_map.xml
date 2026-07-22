@@ -158,13 +158,38 @@
                 android:text="@string/section_cruise"
                 android:textAppearance="@style/TextAppearance.GpsJoystick.Title" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnImportGpx"
-                style="@style/Widget.GpsJoystick.Button.Tonal"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="@string/gpx_load" />
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnImportGpx"
+                    style="@style/Widget.GpsJoystick.Button.Tonal"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:text="@string/gpx_load" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRadiusCruise"
+                    style="@style/Widget.GpsJoystick.Button.Tonal"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:text="@string/radius_cruise" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/routeLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/route_label_none"
+                android:textAppearance="@style/TextAppearance.GpsJoystick.Mono" />
 
             <!-- Batch 1: 3-way playback mode selector (segmented, full width) -->
             <com.google.android.material.button.MaterialButtonToggleGroup

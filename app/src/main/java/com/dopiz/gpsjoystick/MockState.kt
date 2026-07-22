@@ -24,6 +24,12 @@ data class MockState(
      * Master gate over all position advancement; transient (not persisted).
      */
     val movementPaused: Boolean = false,
+    /** Straight-line walk-to-coordinate target. Transient; arrival clears [walkToActive]. */
+    val walkToActive: Boolean = false,
+    val walkFromLat: Double = 0.0,
+    val walkFromLng: Double = 0.0,
+    val walkToLat: Double = 0.0,
+    val walkToLng: Double = 0.0,
     /** GPX playback session (route + cursor + mode). Empty route = nothing to play. */
     val playback: Playback = Playback(),
     /**

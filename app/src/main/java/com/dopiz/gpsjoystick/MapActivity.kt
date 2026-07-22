@@ -1,5 +1,6 @@
 package com.dopiz.gpsjoystick
 
+import android.content.DialogInterface
 import android.graphics.Color
 import android.graphics.Point
 import android.os.Bundle
@@ -27,7 +28,11 @@ import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.io.File
+import kotlin.math.asin
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.sin
 
 /**
  * In-app OSMDroid map. Subscribes to [MockLocationService.state] so the marker always equals
@@ -41,6 +46,10 @@ class MapActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMapBinding
     private lateinit var marker: Marker
     private var pinMarker: Marker? = null
+    private var walkStartMarker: Marker? = null
+    private var walkEndMarker: Marker? = null
+    private var walkGuideLine: Polyline? = null
+    private var shownWalkTarget: Pair<Double, Double>? = null
     private var centeredOnce = false
     private var gpxPolyline: Polyline? = null
     /** Feature 5: whether the control card is collapsed so the map fills the screen. */
@@ -66,8 +75,12 @@ class MapActivity : AppCompatActivity() {
                 val lng = data.getDoubleExtra(FavoritesActivity.EXTRA_FAV_LNG, Double.NaN)
                 if (!lat.isNaN() && !lng.isNaN()) {
                     binding.coordInput.setText("${fmt(lat)}, ${fmt(lng)}")
-                    teleportTo(lat, lng,
-                        getString(R.string.coord_teleport, fmt(lat), fmt(lng)))
+                    when (data.getStringExtra(FavoritesActivity.EXTRA_FAV_ACTION)) {
+                        FavoritesActivity.ACTION_WALK -> startWalkTo(lat, lng)
+                        else -> teleportTo(
+                            lat, lng, getString(R.string.coord_teleport, fmt(lat), fmt(lng))
+                        )
+                    }
                 }
             }
         }
@@ -116,6 +129,7 @@ class MapActivity : AppCompatActivity() {
         binding.btnImportGpx.setOnClickListener {
             gpxLibLauncher.launch(android.content.Intent(this, GpxLibraryActivity::class.java))
         }
+        binding.btnRadiusCruise.setOnClickListener { promptRadiusCruise() }
 
         binding.btnCoordGo.setOnClickListener { submitCoord() }
         binding.coordInput.setOnEditorActionListener { _, actionId, _ ->
@@ -135,8 +149,7 @@ class MapActivity : AppCompatActivity() {
         setupSpeedChips()
         observeMockState()
 
-        // Batch 2: reload the last-chosen library GPX so reopening the map restores the route.
-        SessionStore.loadCurrentGpxId(this)?.let { loadGpxById(it) }
+        restoreRouteForThisProcess()
     }
 
     private val speedButtonIds
@@ -240,22 +253,137 @@ class MapActivity : AppCompatActivity() {
         }
     }
 
-    /** Load a saved GPX (from the library) by id: draw its polyline and arm playback. */
-    private fun loadGpxById(id: String) {
-        val pts = GpxStore.get(this, id)
-        if (pts.isEmpty()) {
-            SessionStore.clearCurrentGpxId(this)
-            return
+    /** Prompt for a radius and preview a generated spherical circle route. */
+    private fun promptRadiusCruise() {
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            hint = getString(R.string.radius_cruise_hint)
+            setSingleLine()
         }
-        SessionStore.saveCurrentGpxId(this, id)
-        loadRoute(pts)
+        val container = FrameLayout(this).apply {
+            setPadding(pad, pad / 2, pad, 0)
+            addView(input)
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.radius_cruise_title)
+            .setView(container)
+            .setPositiveButton(R.string.dialog_save, null)
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener {
+                val radiusKm = input.text?.toString()?.trim()?.toDoubleOrNull()
+                if (radiusKm == null || !radiusKm.isFinite() ||
+                    radiusKm <= 0.0 || radiusKm > MAX_RADIUS_KM
+                ) {
+                    input.error = getString(R.string.radius_cruise_invalid)
+                    input.requestFocus()
+                    return@setOnClickListener
+                }
+                input.error = null
+                dialog.dismiss()
+                loadRadiusRoute(radiusKm)
+            }
+        }
+        dialog.show()
     }
 
-    /** Draw the route and hand it to the playback engine in the current mode. */
-    private fun loadRoute(pts: List<GeoPt>) {
+    /** Replace any selected GPX with an idle, preview-only generated circle route. */
+    private fun loadRadiusRoute(radiusKm: Double) {
+        SessionStore.clearCurrentGpxId(this)
+        currentGpxIdInProcess = null
+        // Loading a new route must not leave an already-playing route running underneath the preview.
+        MockLocationService.stopPlayback()
+        loadRoute(
+            generateRadiusRoute(radiusKm),
+            getString(R.string.radius_cruise_route_name, radiusKm),
+        )
+    }
+
+    /** Generate 72 spherical destination points at 5-degree bearings, then close the circle. */
+    private fun generateRadiusRoute(radiusKm: Double): List<GeoPt> {
+        val state = MockLocationService.state.value
+        val centerLatRad = Math.toRadians(state.latitude)
+        val centerLngRad = Math.toRadians(state.longitude)
+        val angularDistance = radiusKm * 1000.0 / EARTH_RADIUS_M
+        val sinCenterLat = sin(centerLatRad)
+        val cosCenterLat = cos(centerLatRad)
+        val sinAngularDistance = sin(angularDistance)
+        val cosAngularDistance = cos(angularDistance)
+        val points = (0 until RADIUS_POINT_COUNT).map { index ->
+            val bearingRad = Math.toRadians(
+                (index * RADIUS_BEARING_STEP_DEGREES).toDouble()
+            )
+            val destinationLatRad = asin(
+                (sinCenterLat * cosAngularDistance +
+                    cosCenterLat * sinAngularDistance * cos(bearingRad))
+                    .coerceIn(-1.0, 1.0)
+            )
+            val destinationLngRad = centerLngRad + atan2(
+                sin(bearingRad) * sinAngularDistance * cosCenterLat,
+                cosAngularDistance - sinCenterLat * sin(destinationLatRad),
+            )
+            GeoPt(
+                lat = Math.toDegrees(destinationLatRad),
+                lng = normalizeLongitude(Math.toDegrees(destinationLngRad)),
+            )
+        }
+        return points + points.first()
+    }
+
+    private fun normalizeLongitude(longitude: Double): Double =
+        ((longitude + 180.0) % 360.0 + 360.0) % 360.0 - 180.0
+
+    /** Load a saved GPX (from the library) by id: draw its polyline and arm playback. */
+    private fun loadGpxById(id: String) {
+        val routeName = GpxStore.list(this).firstOrNull { it.id == id }?.name
+        val pts = GpxStore.get(this, id)
+        if (pts.isEmpty()) {
+            currentGpxIdInProcess = null
+            currentRouteNameInProcess = null
+            updateRouteLabel(null, 0)
+            return
+        }
+        currentGpxIdInProcess = id
+        loadRoute(pts, routeName ?: getString(R.string.route_label_gpx))
+    }
+
+    /**
+     * Keep an explicitly loaded route while this app process lives, but do not resurrect an idle
+     * route after an app restart. An active/paused playback owns its live points and cursor, so
+     * reopening the map only redraws those points without calling setPlaybackRoute() and resetting
+     * progress.
+     */
+    private fun restoreRouteForThisProcess() {
+        // Remove the legacy persisted selection; route selection is process-scoped from now on.
+        SessionStore.clearCurrentGpxId(this)
+        val playback = MockLocationService.state.value.playback
+        if (playback.active && playback.hasRoute) {
+            routePts = playback.points
+            mode = playback.mode
+            updateRouteLabel(currentRouteNameInProcess, routePts.size)
+            drawTrack(routePts.map { GeoPoint(it.lat, it.lng) })
+            return
+        }
+        currentGpxIdInProcess?.let { loadGpxById(it) }
+    }
+
+    /** Draw the named route and hand it to the playback engine in the current mode. */
+    private fun loadRoute(pts: List<GeoPt>, name: String) {
+        currentRouteNameInProcess = name
+        updateRouteLabel(name, pts.size)
         drawTrack(pts.map { GeoPoint(it.lat, it.lng) })
         routePts = pts
         MockLocationService.setPlaybackRoute(pts, mode)
+    }
+
+    private fun updateRouteLabel(name: String?, pointCount: Int) {
+        binding.routeLabel.text = when {
+            pointCount <= 0 -> getString(R.string.route_label_none)
+            name.isNullOrBlank() -> getString(R.string.route_label_current, pointCount)
+            else -> getString(R.string.route_label_loaded, name, pointCount)
+        }
     }
 
     private fun drawTrack(points: List<GeoPoint>) {
@@ -270,10 +398,27 @@ class MapActivity : AppCompatActivity() {
         }
         gpxPolyline = line
         binding.map.overlays.add(line)
-        binding.map.post {
-            binding.map.zoomToBoundingBox(BoundingBox.fromGeoPoints(points), true, 64)
-        }
+        zoomToBoundsSafely(points, ROUTE_BOUNDS_PADDING_PX)
         binding.map.invalidate()
+    }
+
+    /**
+     * OSMDroid 1.6.20 can spin forever inside Projection.getCloserPixel when asked to fit bounds
+     * while a multi-window resize leaves the MapView at zero/tiny height. Never call its bounds
+     * math until the laid-out viewport has positive space remaining after padding.
+     */
+    private fun zoomToBoundsSafely(points: List<GeoPoint>, paddingPx: Int) {
+        if (points.isEmpty()) return
+        binding.map.post {
+            val usableWidth = binding.map.width - paddingPx * 2
+            val usableHeight = binding.map.height - paddingPx * 2
+            if (!binding.map.isAttachedToWindow || usableWidth <= 0 || usableHeight <= 0) {
+                return@post
+            }
+            binding.map.zoomToBoundingBox(
+                BoundingBox.fromGeoPoints(points), true, paddingPx
+            )
+        }
     }
 
     /**
@@ -344,6 +489,21 @@ class MapActivity : AppCompatActivity() {
         }
         teleportTo(coord.first, coord.second,
             getString(R.string.coord_teleport, fmt(coord.first), fmt(coord.second)))
+        binding.coordInput.text?.clear()
+    }
+
+    private fun startWalkTo(lat: Double, lng: Double) {
+        if (!MockLocationService.state.value.isRunning) {
+            Toast.makeText(this, R.string.coord_walk_requires_mock, Toast.LENGTH_LONG).show()
+            return
+        }
+        MockLocationService.walkTo(lat, lng)
+        binding.map.controller.animateTo(GeoPoint(lat, lng))
+        Toast.makeText(
+            this,
+            getString(R.string.coord_walk_started, fmt(lat), fmt(lng)),
+            Toast.LENGTH_SHORT,
+        ).show()
         binding.coordInput.text?.clear()
     }
 
@@ -525,11 +685,66 @@ class MapActivity : AppCompatActivity() {
                         "%.0f".format(s.speedMps * 3.6),
                         "%.1f".format(s.speedMps),
                     )
+                    updateWalkGuide(s)
                     updateHud(s)
                     binding.map.invalidate()
                 }
             }
         }
+    }
+
+    /** Show the complete active coordinate-walk leg; clear it as soon as that mode ends. */
+    private fun updateWalkGuide(s: MockState) {
+        if (!s.walkToActive) {
+            clearWalkGuide()
+            return
+        }
+
+        val start = GeoPoint(s.walkFromLat, s.walkFromLng)
+        val end = GeoPoint(s.walkToLat, s.walkToLng)
+        val startMarker = walkStartMarker ?: Marker(binding.map).apply {
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            title = getString(R.string.walk_start_marker)
+        }.also {
+            walkStartMarker = it
+            binding.map.overlays.add(it)
+        }
+        val endMarker = walkEndMarker ?: Marker(binding.map).apply {
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            title = getString(R.string.walk_end_marker)
+        }.also {
+            walkEndMarker = it
+            binding.map.overlays.add(it)
+        }
+        startMarker.position = start
+        endMarker.position = end
+
+        val line = walkGuideLine ?: Polyline(binding.map).apply {
+            outlinePaint.color = getColor(R.color.brand_primary)
+            outlinePaint.strokeWidth = 6f
+            setOnClickListener { _, _, _ -> false }
+        }.also {
+            walkGuideLine = it
+            // Keep the guide below all markers.
+            binding.map.overlays.add(0, it)
+        }
+        line.setPoints(listOf(start, end))
+
+        val target = s.walkToLat to s.walkToLng
+        if (shownWalkTarget != target) {
+            shownWalkTarget = target
+            zoomToBoundsSafely(listOf(start, end), WALK_BOUNDS_PADDING_PX)
+        }
+    }
+
+    private fun clearWalkGuide() {
+        walkStartMarker?.let(binding.map.overlays::remove)
+        walkEndMarker?.let(binding.map.overlays::remove)
+        walkGuideLine?.let(binding.map.overlays::remove)
+        walkStartMarker = null
+        walkEndMarker = null
+        walkGuideLine = null
+        shownWalkTarget = null
     }
 
     /**
@@ -570,6 +785,16 @@ class MapActivity : AppCompatActivity() {
 
     private companion object {
         const val TAP_THRESHOLD_PX = 60f
+        const val ROUTE_BOUNDS_PADDING_PX = 64
+        const val WALK_BOUNDS_PADDING_PX = 72
+        const val EARTH_RADIUS_M = 6_371_000.0
+        const val RADIUS_POINT_COUNT = 72
+        const val RADIUS_BEARING_STEP_DEGREES = 5
+        const val MAX_RADIUS_KM = 1_000.0
+
+        /** Deliberately process-only: an app process restart clears an idle GPX selection. */
+        var currentGpxIdInProcess: String? = null
+        var currentRouteNameInProcess: String? = null
 
         /** Feature 1 speed presets in km/h, in chip order: Walk / Cycle / Drive. */
         val presetKmh = listOf(5.0, 15.0, 40.0)

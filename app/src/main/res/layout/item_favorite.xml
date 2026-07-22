@@ -11,8 +11,13 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
         <LinearLayout
             android:id="@+id/rowChoose"
@@ -20,7 +25,6 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:background="?attr/selectableItemBackground"
             android:minHeight="56dp"
             android:paddingHorizontal="12dp"
             android:paddingVertical="8dp"
@@ -41,6 +45,15 @@
                 android:layout_marginTop="2dp"
                 android:fontFeatureSettings="tnum"
                 android:textAppearance="@style/TextAppearance.GpsJoystick.Label" />
+
+            <TextView
+                android:id="@+id/favCooldown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:fontFeatureSettings="tnum"
+                android:textColor="@color/brand_primary"
+                android:textAppearance="@style/TextAppearance.GpsJoystick.Label" />
         </LinearLayout>
 
         <com.google.android.material.button.MaterialButton
@@ -52,5 +65,33 @@
             android:contentDescription="@string/gpx_menu"
             app:icon="@drawable/ic_more_vert"
             app:iconTint="@color/on_surface_variant" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="8dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnFavWalk"
+                style="@style/Widget.GpsJoystick.Button.Tonal"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="@string/coord_walk" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnFavTeleport"
+                style="@style/Widget.GpsJoystick.Button.Primary"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:text="@string/coord_send" />
+        </LinearLayout>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
