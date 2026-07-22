@@ -71,7 +71,12 @@ class MockLocationService : Service() {
                 val lng = intent.getDoubleExtra(EXTRA_LNG, _state.value.longitude)
                 val cur = _state.value
                 // Teleport is an explicit user action: it wins over any active playback.
-                _state.update { it.copy(playback = it.playback.copy(active = false, paused = false)) }
+                _state.update {
+                    it.copy(
+                        walkToActive = false,
+                        playback = it.playback.copy(active = false, paused = false),
+                    )
+                }
                 // Feature 4: ease to the target instead of a hard single-frame jump — but only
                 // while the tick loop is running to animate it; otherwise just set the position.
                 if (cur.isRunning) {
@@ -212,6 +217,28 @@ class MockLocationService : Service() {
             }
             return
         }
+        // Walk straight to a single coordinate at the shared speed, then stop on arrival.
+        if (s.walkToActive) {
+            val target = GeoPt(s.walkToLat, s.walkToLng)
+            val cur = GeoPt(s.latitude, s.longitude)
+            val dist = PlaybackEngine.segMeters(cur, target)
+            val stepM = SpeedModel.distanceMeters(s.speedMps, dtSeconds)
+            if (stepM <= 0.0) return
+            if (dist <= WALK_TO_THRESHOLD_M || stepM >= dist) {
+                _state.update {
+                    it.copy(latitude = target.lat, longitude = target.lng, walkToActive = false)
+                }
+            } else {
+                val f = stepM / dist
+                _state.update {
+                    it.copy(
+                        latitude = cur.lat + (target.lat - cur.lat) * f,
+                        longitude = cur.lng + (target.lng - cur.lng) * f,
+                    )
+                }
+            }
+            return
+        }
         // Change 2 — RETURNING phase: after resuming from a pause where the injected position
         // drifted away (joystick march / teleport), walk STRAIGHT back to the paused cursor at the
         // shared speed before the route resumes. Constant-speed straight line — not a teleport, not
@@ -310,8 +337,12 @@ class MockLocationService : Service() {
             altitude = 0.0
             val playing = s.playback.active && !s.playback.paused && s.playback.hasRoute
             val moving = !s.movementPaused &&
-                (playing || s.headingActive || s.direction != Direction.NONE)
+                (s.walkToActive || playing || s.headingActive || s.direction != Direction.NONE)
             bearing = when {
+                s.walkToActive -> DirectionEngine.bearingOf(
+                    s.walkToLat - s.latitude,
+                    (s.walkToLng - s.longitude) * kotlin.math.cos(Math.toRadians(s.latitude)),
+                )
                 playing -> PlaybackEngine.currentBearing(s.playback)
                 s.headingActive -> DirectionEngine.bearingOf(s.headingNorth, s.headingEast)
                 else -> s.direction.bearingDegrees
@@ -347,7 +378,11 @@ class MockLocationService : Service() {
         // Ending the session must also end any playback, so a later Start is clean and the
         // persisted active-session flag (pb_active) does not resurrect a session the user ended.
         _state.update {
-            it.copy(isRunning = false, playback = it.playback.copy(active = false, paused = false))
+            it.copy(
+                isRunning = false,
+                walkToActive = false,
+                playback = it.playback.copy(active = false, paused = false),
+            )
         }
         SessionStore.save(this, _state.value)
         stopSelfCleanup()
@@ -447,6 +482,7 @@ class MockLocationService : Service() {
         private const val GLIDE_MAX_MS = 1200L
         // Change 2: within this many meters of the paused cursor, skip/finish the walk-back.
         private const val RETURN_THRESHOLD_M = 3.0
+        private const val WALK_TO_THRESHOLD_M = 1.0
 
         private val _state = MutableStateFlow(MockState())
         val state: StateFlow<MockState> = _state.asStateFlow()
@@ -518,6 +554,7 @@ class MockLocationService : Service() {
             _state.update {
                 it.copy(
                     direction = direction,
+                    walkToActive = false,
                     headingActive = false,
                     playback = it.playback.copy(active = false, paused = false),
                 )
@@ -545,6 +582,7 @@ class MockLocationService : Service() {
                     headingNorth = north,
                     headingEast = east,
                     direction = Direction.NONE,
+                    walkToActive = false,
                     // Driving the joystick is explicit manual control: it wins over playback.
                     playback = it.playback.copy(active = false, paused = false),
                 )
@@ -611,7 +649,26 @@ class MockLocationService : Service() {
         }
 
         fun play() {
-            _state.update { it.resumeRoute() }
+            _state.update { it.copy(walkToActive = false).resumeRoute() }
+        }
+
+        /** Walk from the current mock coordinate to a target at the current shared speed. */
+        fun walkTo(lat: Double, lng: Double) {
+            _state.update {
+                it.copy(
+                    walkToActive = true,
+                    walkFromLat = it.latitude,
+                    walkFromLng = it.longitude,
+                    walkToLat = lat,
+                    walkToLng = lng,
+                    glideActive = false,
+                    direction = Direction.NONE,
+                    headingActive = false,
+                    headingNorth = 0.0,
+                    headingEast = 0.0,
+                    playback = it.playback.copy(active = false, paused = false),
+                )
+            }
         }
 
         /**
@@ -632,7 +689,7 @@ class MockLocationService : Service() {
         }
 
         fun resumePlayback() {
-            _state.update { it.resumeRoute() }
+            _state.update { it.copy(walkToActive = false).resumeRoute() }
         }
 
         fun stopPlayback() {

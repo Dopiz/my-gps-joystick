@@ -107,13 +107,27 @@ class FavoritesActivity : AppCompatActivity() {
     private fun render() {
         listContainer.removeAllViews()
         val favs = FavoritesStore.list(this)
+        val current = MockLocationService.state.value
         emptyHint.visibility = if (favs.isEmpty()) View.VISIBLE else View.GONE
         val inflater = LayoutInflater.from(this)
         favs.forEachIndexed { index, fav ->
             val row = inflater.inflate(R.layout.item_favorite, listContainer, false)
+            val estimate = PokemonGoCooldown.estimate(
+                current.latitude, current.longitude, fav.lat, fav.lng
+            )
             row.findViewById<TextView>(R.id.favName).text = fav.label
             row.findViewById<TextView>(R.id.favMeta).text = "${fmt(fav.lat)}, ${fmt(fav.lng)}"
-            row.findViewById<LinearLayout>(R.id.rowChoose).setOnClickListener { choose(fav) }
+            row.findViewById<TextView>(R.id.favCooldown).text = getString(
+                R.string.fav_cooldown,
+                formatDistance(estimate.distanceMeters),
+                formatCooldown(estimate.waitSeconds),
+            )
+            row.findViewById<MaterialButton>(R.id.btnFavWalk).setOnClickListener {
+                choose(fav, ACTION_WALK)
+            }
+            row.findViewById<MaterialButton>(R.id.btnFavTeleport).setOnClickListener {
+                choose(fav, ACTION_TELEPORT)
+            }
             row.findViewById<MaterialButton>(R.id.btnMenu).setOnClickListener { v ->
                 showItemMenu(v, index, fav)
             }
@@ -121,12 +135,13 @@ class FavoritesActivity : AppCompatActivity() {
         }
     }
 
-    private fun choose(fav: FavoritesStore.Fav) {
+    private fun choose(fav: FavoritesStore.Fav, action: String) {
         setResult(
             Activity.RESULT_OK,
             Intent()
                 .putExtra(EXTRA_FAV_LAT, fav.lat)
-                .putExtra(EXTRA_FAV_LNG, fav.lng),
+                .putExtra(EXTRA_FAV_LNG, fav.lng)
+                .putExtra(EXTRA_FAV_ACTION, action),
         )
         finish()
     }
@@ -184,8 +199,27 @@ class FavoritesActivity : AppCompatActivity() {
 
     private fun fmt(v: Double): String = "%.5f".format(v)
 
+    private fun formatDistance(meters: Double): String = when {
+        meters < 1_000.0 -> getString(R.string.distance_meters, meters.toInt())
+        meters < 100_000.0 -> getString(R.string.distance_km_decimal, meters / 1_000.0)
+        else -> getString(R.string.distance_km_whole, (meters / 1_000.0).toInt())
+    }
+
+    private fun formatCooldown(seconds: Int): String = when {
+        seconds == 0 -> getString(R.string.cooldown_none)
+        seconds < 60 -> getString(R.string.cooldown_seconds, seconds)
+        seconds % 3_600 == 0 -> getString(R.string.cooldown_hours, seconds / 3_600)
+        seconds >= 3_600 -> getString(
+            R.string.cooldown_hours_minutes, seconds / 3_600, (seconds % 3_600) / 60
+        )
+        else -> getString(R.string.cooldown_minutes, seconds / 60)
+    }
+
     companion object {
         const val EXTRA_FAV_LAT = "fav_lat"
         const val EXTRA_FAV_LNG = "fav_lng"
+        const val EXTRA_FAV_ACTION = "fav_action"
+        const val ACTION_TELEPORT = "teleport"
+        const val ACTION_WALK = "walk"
     }
 }

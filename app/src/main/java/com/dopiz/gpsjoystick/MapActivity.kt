@@ -41,6 +41,10 @@ class MapActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMapBinding
     private lateinit var marker: Marker
     private var pinMarker: Marker? = null
+    private var walkStartMarker: Marker? = null
+    private var walkEndMarker: Marker? = null
+    private var walkGuideLine: Polyline? = null
+    private var shownWalkTarget: Pair<Double, Double>? = null
     private var centeredOnce = false
     private var gpxPolyline: Polyline? = null
     /** Feature 5: whether the control card is collapsed so the map fills the screen. */
@@ -66,8 +70,12 @@ class MapActivity : AppCompatActivity() {
                 val lng = data.getDoubleExtra(FavoritesActivity.EXTRA_FAV_LNG, Double.NaN)
                 if (!lat.isNaN() && !lng.isNaN()) {
                     binding.coordInput.setText("${fmt(lat)}, ${fmt(lng)}")
-                    teleportTo(lat, lng,
-                        getString(R.string.coord_teleport, fmt(lat), fmt(lng)))
+                    when (data.getStringExtra(FavoritesActivity.EXTRA_FAV_ACTION)) {
+                        FavoritesActivity.ACTION_WALK -> startWalkTo(lat, lng)
+                        else -> teleportTo(
+                            lat, lng, getString(R.string.coord_teleport, fmt(lat), fmt(lng))
+                        )
+                    }
                 }
             }
         }
@@ -135,8 +143,7 @@ class MapActivity : AppCompatActivity() {
         setupSpeedChips()
         observeMockState()
 
-        // Batch 2: reload the last-chosen library GPX so reopening the map restores the route.
-        SessionStore.loadCurrentGpxId(this)?.let { loadGpxById(it) }
+        restoreRouteForThisProcess()
     }
 
     private val speedButtonIds
@@ -244,11 +251,30 @@ class MapActivity : AppCompatActivity() {
     private fun loadGpxById(id: String) {
         val pts = GpxStore.get(this, id)
         if (pts.isEmpty()) {
-            SessionStore.clearCurrentGpxId(this)
+            currentGpxIdInProcess = null
             return
         }
-        SessionStore.saveCurrentGpxId(this, id)
+        currentGpxIdInProcess = id
         loadRoute(pts)
+    }
+
+    /**
+     * Keep an explicitly loaded route while this app process lives, but do not resurrect an idle
+     * route after an app restart. An active/paused playback owns its live points and cursor, so
+     * reopening the map only redraws those points without calling setPlaybackRoute() and resetting
+     * progress.
+     */
+    private fun restoreRouteForThisProcess() {
+        // Remove the legacy persisted selection; route selection is process-scoped from now on.
+        SessionStore.clearCurrentGpxId(this)
+        val playback = MockLocationService.state.value.playback
+        if (playback.active && playback.hasRoute) {
+            routePts = playback.points
+            mode = playback.mode
+            drawTrack(routePts.map { GeoPoint(it.lat, it.lng) })
+            return
+        }
+        currentGpxIdInProcess?.let { loadGpxById(it) }
     }
 
     /** Draw the route and hand it to the playback engine in the current mode. */
@@ -270,10 +296,27 @@ class MapActivity : AppCompatActivity() {
         }
         gpxPolyline = line
         binding.map.overlays.add(line)
-        binding.map.post {
-            binding.map.zoomToBoundingBox(BoundingBox.fromGeoPoints(points), true, 64)
-        }
+        zoomToBoundsSafely(points, ROUTE_BOUNDS_PADDING_PX)
         binding.map.invalidate()
+    }
+
+    /**
+     * OSMDroid 1.6.20 can spin forever inside Projection.getCloserPixel when asked to fit bounds
+     * while a multi-window resize leaves the MapView at zero/tiny height. Never call its bounds
+     * math until the laid-out viewport has positive space remaining after padding.
+     */
+    private fun zoomToBoundsSafely(points: List<GeoPoint>, paddingPx: Int) {
+        if (points.isEmpty()) return
+        binding.map.post {
+            val usableWidth = binding.map.width - paddingPx * 2
+            val usableHeight = binding.map.height - paddingPx * 2
+            if (!binding.map.isAttachedToWindow || usableWidth <= 0 || usableHeight <= 0) {
+                return@post
+            }
+            binding.map.zoomToBoundingBox(
+                BoundingBox.fromGeoPoints(points), true, paddingPx
+            )
+        }
     }
 
     /**
@@ -344,6 +387,21 @@ class MapActivity : AppCompatActivity() {
         }
         teleportTo(coord.first, coord.second,
             getString(R.string.coord_teleport, fmt(coord.first), fmt(coord.second)))
+        binding.coordInput.text?.clear()
+    }
+
+    private fun startWalkTo(lat: Double, lng: Double) {
+        if (!MockLocationService.state.value.isRunning) {
+            Toast.makeText(this, R.string.coord_walk_requires_mock, Toast.LENGTH_LONG).show()
+            return
+        }
+        MockLocationService.walkTo(lat, lng)
+        binding.map.controller.animateTo(GeoPoint(lat, lng))
+        Toast.makeText(
+            this,
+            getString(R.string.coord_walk_started, fmt(lat), fmt(lng)),
+            Toast.LENGTH_SHORT,
+        ).show()
         binding.coordInput.text?.clear()
     }
 
@@ -525,11 +583,66 @@ class MapActivity : AppCompatActivity() {
                         "%.0f".format(s.speedMps * 3.6),
                         "%.1f".format(s.speedMps),
                     )
+                    updateWalkGuide(s)
                     updateHud(s)
                     binding.map.invalidate()
                 }
             }
         }
+    }
+
+    /** Show the complete active coordinate-walk leg; clear it as soon as that mode ends. */
+    private fun updateWalkGuide(s: MockState) {
+        if (!s.walkToActive) {
+            clearWalkGuide()
+            return
+        }
+
+        val start = GeoPoint(s.walkFromLat, s.walkFromLng)
+        val end = GeoPoint(s.walkToLat, s.walkToLng)
+        val startMarker = walkStartMarker ?: Marker(binding.map).apply {
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            title = getString(R.string.walk_start_marker)
+        }.also {
+            walkStartMarker = it
+            binding.map.overlays.add(it)
+        }
+        val endMarker = walkEndMarker ?: Marker(binding.map).apply {
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            title = getString(R.string.walk_end_marker)
+        }.also {
+            walkEndMarker = it
+            binding.map.overlays.add(it)
+        }
+        startMarker.position = start
+        endMarker.position = end
+
+        val line = walkGuideLine ?: Polyline(binding.map).apply {
+            outlinePaint.color = getColor(R.color.brand_primary)
+            outlinePaint.strokeWidth = 6f
+            setOnClickListener { _, _, _ -> false }
+        }.also {
+            walkGuideLine = it
+            // Keep the guide below all markers.
+            binding.map.overlays.add(0, it)
+        }
+        line.setPoints(listOf(start, end))
+
+        val target = s.walkToLat to s.walkToLng
+        if (shownWalkTarget != target) {
+            shownWalkTarget = target
+            zoomToBoundsSafely(listOf(start, end), WALK_BOUNDS_PADDING_PX)
+        }
+    }
+
+    private fun clearWalkGuide() {
+        walkStartMarker?.let(binding.map.overlays::remove)
+        walkEndMarker?.let(binding.map.overlays::remove)
+        walkGuideLine?.let(binding.map.overlays::remove)
+        walkStartMarker = null
+        walkEndMarker = null
+        walkGuideLine = null
+        shownWalkTarget = null
     }
 
     /**
@@ -570,6 +683,11 @@ class MapActivity : AppCompatActivity() {
 
     private companion object {
         const val TAP_THRESHOLD_PX = 60f
+        const val ROUTE_BOUNDS_PADDING_PX = 64
+        const val WALK_BOUNDS_PADDING_PX = 72
+
+        /** Deliberately process-only: an app process restart clears an idle GPX selection. */
+        var currentGpxIdInProcess: String? = null
 
         /** Feature 1 speed presets in km/h, in chip order: Walk / Cycle / Drive. */
         val presetKmh = listOf(5.0, 15.0, 40.0)

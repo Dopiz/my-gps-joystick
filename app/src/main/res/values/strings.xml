@@ -90,6 +90,11 @@
     <string name="fav_save_coord">儲存座標</string>
     <string name="fav_browse">瀏覽收藏</string>
     <string name="coord_send">傳送</string>
+    <string name="coord_walk">步行前往</string>
+    <string name="coord_walk_started">開始步行至 %1$s, %2$s</string>
+    <string name="coord_walk_requires_mock">請先在主畫面啟動模擬定位</string>
+    <string name="walk_start_marker">步行起點</string>
+    <string name="walk_end_marker">步行終點</string>
     <string name="gpx_load">載入 GPX</string>
 
     <!-- Feature 5: playback HUD -->
@@ -129,6 +134,15 @@
     <string name="fav_export_failed">匯出失敗</string>
     <string name="fav_imported">已匯入 %1$d 筆（略過 %2$d 筆重複）</string>
     <string name="fav_import_failed">匯入失敗：%1$s</string>
+    <string name="fav_cooldown">距離 %1$s · 建議冷卻 %2$s</string>
+    <string name="distance_meters">%1$d 公尺</string>
+    <string name="distance_km_decimal">%1$.1f 公里</string>
+    <string name="distance_km_whole">%1$d 公里</string>
+    <string name="cooldown_none">無需等待</string>
+    <string name="cooldown_seconds">%1$d 秒</string>
+    <string name="cooldown_minutes">%1$d 分鐘</string>
+    <string name="cooldown_hours">%1$d 小時</string>
+    <string name="cooldown_hours_minutes">%1$d 小時 %2$d 分鐘</string>
     <string name="dialog_save">儲存</string>
     <string name="dialog_cancel">取消</string>
     <string name="pin_dropped">已在 %1$s, %2$s 放置圖釘並瞬移</string>
