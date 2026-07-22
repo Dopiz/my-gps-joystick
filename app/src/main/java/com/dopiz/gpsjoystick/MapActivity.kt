@@ -1,5 +1,6 @@
 package com.dopiz.gpsjoystick
 
+import android.content.DialogInterface
 import android.graphics.Color
 import android.graphics.Point
 import android.os.Bundle
@@ -27,7 +28,11 @@ import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.io.File
+import kotlin.math.asin
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.sin
 
 /**
  * In-app OSMDroid map. Subscribes to [MockLocationService.state] so the marker always equals
@@ -124,6 +129,7 @@ class MapActivity : AppCompatActivity() {
         binding.btnImportGpx.setOnClickListener {
             gpxLibLauncher.launch(android.content.Intent(this, GpxLibraryActivity::class.java))
         }
+        binding.btnRadiusCruise.setOnClickListener { promptRadiusCruise() }
 
         binding.btnCoordGo.setOnClickListener { submitCoord() }
         binding.coordInput.setOnEditorActionListener { _, actionId, _ ->
@@ -247,15 +253,100 @@ class MapActivity : AppCompatActivity() {
         }
     }
 
+    /** Prompt for a radius and preview a generated spherical circle route. */
+    private fun promptRadiusCruise() {
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            hint = getString(R.string.radius_cruise_hint)
+            setSingleLine()
+        }
+        val container = FrameLayout(this).apply {
+            setPadding(pad, pad / 2, pad, 0)
+            addView(input)
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.radius_cruise_title)
+            .setView(container)
+            .setPositiveButton(R.string.dialog_save, null)
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener {
+                val radiusKm = input.text?.toString()?.trim()?.toDoubleOrNull()
+                if (radiusKm == null || !radiusKm.isFinite() ||
+                    radiusKm <= 0.0 || radiusKm > MAX_RADIUS_KM
+                ) {
+                    input.error = getString(R.string.radius_cruise_invalid)
+                    input.requestFocus()
+                    return@setOnClickListener
+                }
+                input.error = null
+                dialog.dismiss()
+                loadRadiusRoute(radiusKm)
+            }
+        }
+        dialog.show()
+    }
+
+    /** Replace any selected GPX with an idle, preview-only generated circle route. */
+    private fun loadRadiusRoute(radiusKm: Double) {
+        SessionStore.clearCurrentGpxId(this)
+        currentGpxIdInProcess = null
+        // Loading a new route must not leave an already-playing route running underneath the preview.
+        MockLocationService.stopPlayback()
+        loadRoute(
+            generateRadiusRoute(radiusKm),
+            getString(R.string.radius_cruise_route_name, radiusKm),
+        )
+    }
+
+    /** Generate 72 spherical destination points at 5-degree bearings, then close the circle. */
+    private fun generateRadiusRoute(radiusKm: Double): List<GeoPt> {
+        val state = MockLocationService.state.value
+        val centerLatRad = Math.toRadians(state.latitude)
+        val centerLngRad = Math.toRadians(state.longitude)
+        val angularDistance = radiusKm * 1000.0 / EARTH_RADIUS_M
+        val sinCenterLat = sin(centerLatRad)
+        val cosCenterLat = cos(centerLatRad)
+        val sinAngularDistance = sin(angularDistance)
+        val cosAngularDistance = cos(angularDistance)
+        val points = (0 until RADIUS_POINT_COUNT).map { index ->
+            val bearingRad = Math.toRadians(
+                (index * RADIUS_BEARING_STEP_DEGREES).toDouble()
+            )
+            val destinationLatRad = asin(
+                (sinCenterLat * cosAngularDistance +
+                    cosCenterLat * sinAngularDistance * cos(bearingRad))
+                    .coerceIn(-1.0, 1.0)
+            )
+            val destinationLngRad = centerLngRad + atan2(
+                sin(bearingRad) * sinAngularDistance * cosCenterLat,
+                cosAngularDistance - sinCenterLat * sin(destinationLatRad),
+            )
+            GeoPt(
+                lat = Math.toDegrees(destinationLatRad),
+                lng = normalizeLongitude(Math.toDegrees(destinationLngRad)),
+            )
+        }
+        return points + points.first()
+    }
+
+    private fun normalizeLongitude(longitude: Double): Double =
+        ((longitude + 180.0) % 360.0 + 360.0) % 360.0 - 180.0
+
     /** Load a saved GPX (from the library) by id: draw its polyline and arm playback. */
     private fun loadGpxById(id: String) {
+        val routeName = GpxStore.list(this).firstOrNull { it.id == id }?.name
         val pts = GpxStore.get(this, id)
         if (pts.isEmpty()) {
             currentGpxIdInProcess = null
+            currentRouteNameInProcess = null
+            updateRouteLabel(null, 0)
             return
         }
         currentGpxIdInProcess = id
-        loadRoute(pts)
+        loadRoute(pts, routeName ?: getString(R.string.route_label_gpx))
     }
 
     /**
@@ -271,17 +362,28 @@ class MapActivity : AppCompatActivity() {
         if (playback.active && playback.hasRoute) {
             routePts = playback.points
             mode = playback.mode
+            updateRouteLabel(currentRouteNameInProcess, routePts.size)
             drawTrack(routePts.map { GeoPoint(it.lat, it.lng) })
             return
         }
         currentGpxIdInProcess?.let { loadGpxById(it) }
     }
 
-    /** Draw the route and hand it to the playback engine in the current mode. */
-    private fun loadRoute(pts: List<GeoPt>) {
+    /** Draw the named route and hand it to the playback engine in the current mode. */
+    private fun loadRoute(pts: List<GeoPt>, name: String) {
+        currentRouteNameInProcess = name
+        updateRouteLabel(name, pts.size)
         drawTrack(pts.map { GeoPoint(it.lat, it.lng) })
         routePts = pts
         MockLocationService.setPlaybackRoute(pts, mode)
+    }
+
+    private fun updateRouteLabel(name: String?, pointCount: Int) {
+        binding.routeLabel.text = when {
+            pointCount <= 0 -> getString(R.string.route_label_none)
+            name.isNullOrBlank() -> getString(R.string.route_label_current, pointCount)
+            else -> getString(R.string.route_label_loaded, name, pointCount)
+        }
     }
 
     private fun drawTrack(points: List<GeoPoint>) {
@@ -685,9 +787,14 @@ class MapActivity : AppCompatActivity() {
         const val TAP_THRESHOLD_PX = 60f
         const val ROUTE_BOUNDS_PADDING_PX = 64
         const val WALK_BOUNDS_PADDING_PX = 72
+        const val EARTH_RADIUS_M = 6_371_000.0
+        const val RADIUS_POINT_COUNT = 72
+        const val RADIUS_BEARING_STEP_DEGREES = 5
+        const val MAX_RADIUS_KM = 1_000.0
 
         /** Deliberately process-only: an app process restart clears an idle GPX selection. */
         var currentGpxIdInProcess: String? = null
+        var currentRouteNameInProcess: String? = null
 
         /** Feature 1 speed presets in km/h, in chip order: Walk / Cycle / Drive. */
         val presetKmh = listOf(5.0, 15.0, 40.0)

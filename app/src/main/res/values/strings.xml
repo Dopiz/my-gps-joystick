@@ -96,6 +96,15 @@
     <string name="walk_start_marker">步行起點</string>
     <string name="walk_end_marker">步行終點</string>
     <string name="gpx_load">載入 GPX</string>
+    <string name="radius_cruise">半徑巡航</string>
+    <string name="radius_cruise_title">半徑巡航</string>
+    <string name="radius_cruise_hint">半徑（km）</string>
+    <string name="radius_cruise_invalid">請輸入大於 0 且不超過 1000 km 的半徑</string>
+    <string name="radius_cruise_route_name">半徑巡航：%1$.2f km</string>
+    <string name="route_label_none">尚無路線</string>
+    <string name="route_label_loaded">目前路線：%1$s（%2$d 點）</string>
+    <string name="route_label_current">目前路線（%1$d 點）</string>
+    <string name="route_label_gpx">GPX</string>
 
     <!-- Feature 5: playback HUD -->
     <string name="hud_no_route">尚無路線，匯入 GPX 後顯示進度</string>
