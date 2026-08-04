@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/action_select_mode" android:title="@string/fav_select_mode" />
+    <item android:id="@+id/action_manage_categories" android:title="@string/fav_manage_categories" />
+    <item android:id="@+id/action_clear_all" android:title="@string/fav_clear_all" />
+</menu>

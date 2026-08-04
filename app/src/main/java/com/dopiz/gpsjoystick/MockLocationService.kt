@@ -159,6 +159,7 @@ class MockLocationService : Service() {
         tickJob = scope.launch {
             var lastTick = SystemClock.elapsedRealtime()
             var lastSave = 0L
+            var lastNotif = 0L
             // Frame at FRAME_MS (finer than 1s) so glide teleports and movement inject smoothly;
             // motion math is dt-based so the trajectory is unchanged, just updated more often.
             while (isActive) {
@@ -170,6 +171,10 @@ class MockLocationService : Service() {
                 if (now - lastSave >= SAVE_INTERVAL_MS) {
                     SessionStore.save(this@MockLocationService, _state.value)
                     lastSave = now
+                }
+                if (now - lastNotif >= NOTIF_INTERVAL_MS) {
+                    refreshNotification()
+                    lastNotif = now
                 }
                 delay(FRAME_MS)
             }
@@ -425,6 +430,17 @@ class MockLocationService : Service() {
         }
     }
 
+    /**
+     * Re-post the ongoing notification so the cooldown countdown advances. Called from the tick loop
+     * at [NOTIF_INTERVAL_MS] (5s) rather than every second: the system throttles rapid notification
+     * updates anyway, and a 5s cadence is cheap while still reading as "counting down". Once the
+     * cooldown is over this keeps running harmlessly — the text simply falls back to the position.
+     */
+    private fun refreshNotification() {
+        getSystemService(NotificationManager::class.java)
+            .notify(NOTIFICATION_ID, buildNotification())
+    }
+
     private fun buildNotification(): Notification {
         val openIntent = PendingIntent.getActivity(
             this, 0,
@@ -438,15 +454,19 @@ class MockLocationService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val s = _state.value
+        val lat = "%.5f".format(s.latitude)
+        val lng = "%.5f".format(s.longitude)
+        // While a teleport cooldown is running, the countdown replaces the plain position line so
+        // the user can read it without opening the app; it reverts automatically once it hits 0.
+        val cooldown = CooldownStore.remainingSeconds(this)
+        val text = if (cooldown > 0) {
+            getString(R.string.notif_cooldown_text, CooldownStore.format(cooldown), lat, lng)
+        } else {
+            getString(R.string.notif_mock_text, lat, lng)
+        }
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.notif_mock_title))
-            .setContentText(
-                getString(
-                    R.string.notif_mock_text,
-                    "%.5f".format(s.latitude),
-                    "%.5f".format(s.longitude),
-                )
-            )
+            .setContentText(text)
             .setSmallIcon(R.drawable.ic_stat_location)
             .setColor(getColor(R.color.brand_primary))
             .setColorized(true)
@@ -476,6 +496,8 @@ class MockLocationService : Service() {
         private const val NOTIFICATION_ID = 1001
         private const val FRAME_MS = 100L
         private const val SAVE_INTERVAL_MS = 1000L
+        // Cooldown countdown refresh cadence in the notification (see refreshNotification()).
+        private const val NOTIF_INTERVAL_MS = 5000L
         // Feature 4 glide pacing: ~4ms per meter, clamped to a short natural window.
         private const val GLIDE_MS_PER_M = 4.0
         private const val GLIDE_MIN_MS = 600L

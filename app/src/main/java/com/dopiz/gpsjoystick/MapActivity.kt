@@ -18,6 +18,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.dopiz.gpsjoystick.databinding.ActivityMapBinding
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
@@ -58,6 +60,10 @@ class MapActivity : AppCompatActivity() {
     /** The imported route (osmdroid-free); empty until a GPX is loaded. */
     private var routePts: List<GeoPt> = emptyList()
     private var mode: PlaybackMode = PlaybackMode.LOOP
+
+    /** The most recent 半徑巡航 route (and its radius), so it can be saved as GPX afterwards. */
+    private var lastRadiusRoute: List<GeoPt>? = null
+    private var lastRadiusKm: Double = 0.0
 
     private val gpxLibLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -148,6 +154,7 @@ class MapActivity : AppCompatActivity() {
         setupModeChips()
         setupSpeedChips()
         observeMockState()
+        observeCooldown()
 
         restoreRouteForThisProcess()
     }
@@ -269,9 +276,19 @@ class MapActivity : AppCompatActivity() {
             .setTitle(R.string.radius_cruise_title)
             .setView(container)
             .setPositiveButton(R.string.dialog_save, null)
+            .setNeutralButton(R.string.radius_cruise_save_gpx, null)
             .setNegativeButton(R.string.dialog_cancel, null)
             .create()
         dialog.setOnShowListener {
+            dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener {
+                val route = lastRadiusRoute
+                if (route == null) {
+                    Toast.makeText(this, R.string.radius_cruise_no_route, Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                dialog.dismiss()
+                promptSaveRadiusGpx(route, lastRadiusKm)
+            }
             dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener {
                 val radiusKm = input.text?.toString()?.trim()?.toDoubleOrNull()
                 if (radiusKm == null || !radiusKm.isFinite() ||
@@ -295,41 +312,89 @@ class MapActivity : AppCompatActivity() {
         currentGpxIdInProcess = null
         // Loading a new route must not leave an already-playing route running underneath the preview.
         MockLocationService.stopPlayback()
-        loadRoute(
-            generateRadiusRoute(radiusKm),
-            getString(R.string.radius_cruise_route_name, radiusKm),
-        )
+        val route = generateRadiusRoute(radiusKm)
+        lastRadiusRoute = route
+        lastRadiusKm = radiusKm
+        loadRoute(route, getString(R.string.radius_cruise_route_name, radiusKm))
     }
 
-    /** Generate 72 spherical destination points at 5-degree bearings, then close the circle. */
+    /** Ask for a library name, then persist the generated circle as a GPX file. */
+    private fun promptSaveRadiusGpx(route: List<GeoPt>, radiusKm: Double) {
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val input = EditText(this).apply {
+            setSingleLine()
+            setText(getString(R.string.radius_cruise_gpx_default_name, radiusKm))
+            setSelection(text.length)
+        }
+        val container = FrameLayout(this).apply {
+            setPadding(pad, pad / 2, pad, 0)
+            addView(input)
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.radius_cruise_save_gpx)
+            .setView(container)
+            .setPositiveButton(R.string.dialog_save) { _, _ ->
+                val name = input.text?.toString()?.trim().orEmpty()
+                    .ifBlank { getString(R.string.radius_cruise_gpx_default_name, radiusKm) }
+                val result = runCatching { GpxStore.createFromPoints(this, name, route) }
+                Toast.makeText(
+                    this,
+                    if (result.isSuccess) getString(R.string.radius_cruise_gpx_saved, name)
+                    else getString(R.string.radius_cruise_gpx_save_failed),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+    }
+
+    /**
+     * Generate the circle that STARTS at the current mock position and runs southward: the centre
+     * sits due south of it (bearing 180°, distance r), so the current position is the circle's
+     * northernmost point. Sampling then walks clockwise from bearing 0° in 5° steps and closes.
+     */
     private fun generateRadiusRoute(radiusKm: Double): List<GeoPt> {
         val state = MockLocationService.state.value
-        val centerLatRad = Math.toRadians(state.latitude)
-        val centerLngRad = Math.toRadians(state.longitude)
         val angularDistance = radiusKm * 1000.0 / EARTH_RADIUS_M
-        val sinCenterLat = sin(centerLatRad)
-        val cosCenterLat = cos(centerLatRad)
-        val sinAngularDistance = sin(angularDistance)
-        val cosAngularDistance = cos(angularDistance)
+        // Circle centre = destination point due south (bearing 180°) of the current position.
+        val center = destinationPoint(state.latitude, state.longitude, 180.0, angularDistance)
         val points = (0 until RADIUS_POINT_COUNT).map { index ->
-            val bearingRad = Math.toRadians(
-                (index * RADIUS_BEARING_STEP_DEGREES).toDouble()
-            )
-            val destinationLatRad = asin(
-                (sinCenterLat * cosAngularDistance +
-                    cosCenterLat * sinAngularDistance * cos(bearingRad))
-                    .coerceIn(-1.0, 1.0)
-            )
-            val destinationLngRad = centerLngRad + atan2(
-                sin(bearingRad) * sinAngularDistance * cosCenterLat,
-                cosAngularDistance - sinCenterLat * sin(destinationLatRad),
-            )
-            GeoPt(
-                lat = Math.toDegrees(destinationLatRad),
-                lng = normalizeLongitude(Math.toDegrees(destinationLngRad)),
+            destinationPoint(
+                center.lat,
+                center.lng,
+                (index * RADIUS_BEARING_STEP_DEGREES).toDouble(),
+                angularDistance,
             )
         }
         return points + points.first()
+    }
+
+    /** Spherical destination point from (lat,lng) along [bearingDeg] over [angularDistance] radians. */
+    private fun destinationPoint(
+        lat: Double,
+        lng: Double,
+        bearingDeg: Double,
+        angularDistance: Double,
+    ): GeoPt {
+        val latRad = Math.toRadians(lat)
+        val lngRad = Math.toRadians(lng)
+        val bearingRad = Math.toRadians(bearingDeg)
+        val sinLat = sin(latRad)
+        val cosLat = cos(latRad)
+        val sinAngularDistance = sin(angularDistance)
+        val cosAngularDistance = cos(angularDistance)
+        val destLatRad = asin(
+            (sinLat * cosAngularDistance + cosLat * sinAngularDistance * cos(bearingRad))
+                .coerceIn(-1.0, 1.0)
+        )
+        val destLngRad = lngRad + atan2(
+            sin(bearingRad) * sinAngularDistance * cosLat,
+            cosAngularDistance - sinLat * sin(destLatRad),
+        )
+        return GeoPt(
+            lat = Math.toDegrees(destLatRad),
+            lng = normalizeLongitude(Math.toDegrees(destLngRad)),
+        )
     }
 
     private fun normalizeLongitude(longitude: Double): Double =
@@ -519,12 +584,52 @@ class MapActivity : AppCompatActivity() {
 
     /** Teleport (glides via the service when running) + recenter the map. */
     private fun teleportTo(lat: Double, lng: Double, status: String) {
+        recordCooldownFor(lat, lng)
         MockLocationService.update(this, lat, lng)
         val gp = GeoPoint(lat, lng)
         marker.position = gp
         binding.map.controller.animateTo(gp)
         binding.map.invalidate()
         Toast.makeText(this, status, Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * Start (or restart) the post-teleport cooldown, measured from the position we are leaving.
+     * Only jumps count — 走路 (startWalkTo) never lands here. Without a live mock there is no
+     * "from" position yet, so nothing is recorded.
+     */
+    private fun recordCooldownFor(toLat: Double, toLng: Double) {
+        val s = MockLocationService.state.value
+        if (!s.isRunning) return
+        val wait = PokemonGoCooldown.estimate(s.latitude, s.longitude, toLat, toLng).waitSeconds
+        if (wait > 0) CooldownStore.start(this, wait) else CooldownStore.clear(this)
+        renderCooldown()
+    }
+
+    /**
+     * Tick the banner once a second, but only while the activity is resumed (repeatOnLifecycle
+     * cancels the loop on pause) so a backgrounded map costs nothing.
+     */
+    private fun observeCooldown() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                while (isActive) {
+                    renderCooldown()
+                    delay(1000)
+                }
+            }
+        }
+    }
+
+    private fun renderCooldown() {
+        val left = CooldownStore.remainingSeconds(this)
+        if (left <= 0) {
+            binding.cooldownBanner.visibility = View.GONE
+            return
+        }
+        binding.cooldownBanner.visibility = View.VISIBLE
+        binding.cooldownBanner.text =
+            getString(R.string.cooldown_banner, CooldownStore.format(left))
     }
 
     /** Drop / move the single preview pin at [p] without moving the mock. */

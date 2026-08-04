@@ -80,6 +80,50 @@ object GpxStore {
         return entry
     }
 
+    /**
+     * Save an app-generated route (e.g. 半徑巡航) as a standard GPX file in the library.
+     * Writes filesDir/gpx/<uuid>.gpx and appends its metadata, exactly like [import].
+     * @throws EmptyGpxException when [points] is empty.
+     */
+    fun createFromPoints(
+        context: Context,
+        name: String,
+        points: List<GeoPt>,
+        createdAt: Long = System.currentTimeMillis(),
+    ): Entry {
+        if (points.isEmpty()) throw EmptyGpxException()
+        val safeName = name.trim().ifBlank { "GPX" }
+
+        val id = UUID.randomUUID().toString()
+        gpxDir(context).mkdirs()
+        file(context, id).writeText(buildGpx(safeName, points), Charsets.UTF_8)
+
+        val entry = Entry(
+            id = id,
+            name = safeName,
+            originalFilename = "$safeName.gpx",
+            pointCount = points.size,
+            importedAt = createdAt,
+        )
+        persist(context, list(context) + entry)
+        return entry
+    }
+
+    /** Minimal GPX 1.1 document: one track, one segment, one <trkpt> per point. */
+    private fun buildGpx(name: String, points: List<GeoPt>): String = buildString {
+        append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+        append("<gpx version=\"1.1\" creator=\"GPS Joystick\" xmlns=\"http://www.topografix.com/GPX/1/1\">\n")
+        append("  <trk>\n    <name>").append(escapeXml(name)).append("</name>\n    <trkseg>\n")
+        points.forEach { p ->
+            append("      <trkpt lat=\"").append(p.lat).append("\" lon=\"").append(p.lng).append("\"/>\n")
+        }
+        append("    </trkseg>\n  </trk>\n</gpx>\n")
+    }
+
+    private fun escapeXml(s: String): String = s
+        .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        .replace("\"", "&quot;").replace("'", "&apos;")
+
     /** @return the stored route parsed on demand (empty if the file is missing/unparsable). */
     fun get(context: Context, id: String): List<GeoPt> {
         val f = file(context, id)
