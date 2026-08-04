@@ -1,12 +1,12 @@
 package com.dopiz.gpsjoystick
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.DialogInterface
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
-import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -19,6 +19,8 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.checkbox.MaterialCheckBox
@@ -39,7 +41,7 @@ import java.util.Locale
  */
 class FavoritesActivity : AppCompatActivity() {
 
-    private lateinit var listContainer: LinearLayout
+    private lateinit var favList: RecyclerView
     private lateinit var emptyHint: TextView
     private lateinit var categoryChips: ChipGroup
     private lateinit var selectionBar: LinearLayout
@@ -49,6 +51,11 @@ class FavoritesActivity : AppCompatActivity() {
     private var filterCategory: String? = null
     private var selectionMode = false
     private val selected = mutableSetOf<Int>()
+
+    private val adapter = FavAdapter()
+
+    /** Origin for the per-row cooldown estimate; refreshed on every [renderList]. */
+    private var origin = MockLocationService.state.value
 
     private val importLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -69,7 +76,9 @@ class FavoritesActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         toolbar.setNavigationOnClickListener { finish() }
 
-        listContainer = findViewById(R.id.listContainer)
+        favList = findViewById(R.id.favList)
+        favList.layoutManager = LinearLayoutManager(this)
+        favList.adapter = adapter
         emptyHint = findViewById(R.id.emptyHint)
         categoryChips = findViewById(R.id.categoryChips)
         selectionBar = findViewById(R.id.selectionBar)
@@ -265,9 +274,14 @@ class FavoritesActivity : AppCompatActivity() {
         render()
     }
 
-    private fun toggleSelection(index: Int) {
+    /**
+     * [index] is the position in the FULL store list; [position] is the adapter position of the
+     * row that was tapped, so only that row has to be rebound.
+     */
+    private fun toggleSelection(index: Int, position: Int) {
         if (!selected.add(index)) selected.remove(index)
-        renderList()
+        selectionCount.text = getString(R.string.fav_selected_count, selected.size)
+        if (position == RecyclerView.NO_POSITION) renderList() else adapter.notifyItemChanged(position)
     }
 
     private fun batchCategory() {
@@ -295,57 +309,85 @@ class FavoritesActivity : AppCompatActivity() {
     }
 
     private fun renderList() {
-        listContainer.removeAllViews()
-        val all = FavoritesStore.list(this)
-        val visible = all.withIndex().filter { (_, f) ->
-            filterCategory == null || f.category == filterCategory
-        }
-        val current = MockLocationService.state.value
+        val visible = FavoritesStore.list(this).withIndex()
+            .filter { (_, f) -> filterCategory == null || f.category == filterCategory }
+            .map { (index, fav) -> Row(index, fav) }
+        origin = MockLocationService.state.value
         emptyHint.visibility = if (visible.isEmpty()) View.VISIBLE else View.GONE
         selectionBar.visibility = if (selectionMode) View.VISIBLE else View.GONE
         selectionCount.text = getString(R.string.fav_selected_count, selected.size)
+        adapter.submit(visible)
+    }
 
-        val inflater = LayoutInflater.from(this)
-        visible.forEach { (index, fav) ->
-            val row = inflater.inflate(R.layout.item_favorite, listContainer, false)
+    /** A visible row: [index] is its position in the FULL store list (what every store call takes). */
+    private data class Row(val index: Int, val fav: FavoritesStore.Fav)
+
+    private inner class FavAdapter : RecyclerView.Adapter<FavRowHolder>() {
+        private var items: List<Row> = emptyList()
+
+        @SuppressLint("NotifyDataSetChanged")
+        fun submit(rows: List<Row>) {
+            items = rows
+            notifyDataSetChanged()
+        }
+
+        override fun getItemCount(): Int = items.size
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FavRowHolder =
+            FavRowHolder(layoutInflater.inflate(R.layout.item_favorite, parent, false))
+
+        override fun onBindViewHolder(holder: FavRowHolder, position: Int) = holder.bind(items[position])
+    }
+
+    private inner class FavRowHolder(view: View) : RecyclerView.ViewHolder(view) {
+        private val name: TextView = view.findViewById(R.id.favName)
+        private val meta: TextView = view.findViewById(R.id.favMeta)
+        private val category: TextView = view.findViewById(R.id.favCategory)
+        private val cooldown: TextView = view.findViewById(R.id.favCooldown)
+        private val check: MaterialCheckBox = view.findViewById(R.id.favCheck)
+        private val menu: MaterialButton = view.findViewById(R.id.btnMenu)
+        private val walk: MaterialButton = view.findViewById(R.id.btnFavWalk)
+        private val teleport: MaterialButton = view.findViewById(R.id.btnFavTeleport)
+        private val chooser: View = view.findViewById(R.id.rowChoose)
+        private val actions: ViewGroup = walk.parent as ViewGroup
+        private var row: Row? = null
+
+        init {
+            menu.setOnClickListener { v -> row?.let { showItemMenu(v, it.index, it.fav) } }
+            walk.setOnClickListener { row?.let { choose(it.fav, ACTION_WALK) } }
+            teleport.setOnClickListener { row?.let { choose(it.fav, ACTION_TELEPORT) } }
+            chooser.setOnClickListener {
+                val r = row ?: return@setOnClickListener
+                if (selectionMode) toggleSelection(r.index, adapterPosition)
+                else choose(r.fav, ACTION_TELEPORT)
+            }
+            chooser.setOnLongClickListener {
+                val r = row ?: return@setOnLongClickListener true
+                val position = adapterPosition
+                if (!selectionMode) enterSelection()
+                toggleSelection(r.index, position)
+                true
+            }
+        }
+
+        fun bind(item: Row) {
+            row = item
+            val fav = item.fav
             val estimate = PokemonGoCooldown.estimate(
-                current.latitude, current.longitude, fav.lat, fav.lng
+                origin.latitude, origin.longitude, fav.lat, fav.lng
             )
-            row.findViewById<TextView>(R.id.favName).text = fav.label
-            row.findViewById<TextView>(R.id.favMeta).text = "${fmt(fav.lat)}, ${fmt(fav.lng)}"
-            row.findViewById<TextView>(R.id.favCategory).text =
-                getString(R.string.fav_category_meta, fav.category)
-            row.findViewById<TextView>(R.id.favCooldown).text = getString(
+            name.text = fav.label
+            meta.text = "${fmt(fav.lat)}, ${fmt(fav.lng)}"
+            category.text = getString(R.string.fav_category_meta, fav.category)
+            cooldown.text = getString(
                 R.string.fav_cooldown,
                 formatDistance(estimate.distanceMeters),
                 formatCooldown(estimate.waitSeconds),
             )
-            val check = row.findViewById<MaterialCheckBox>(R.id.favCheck)
             check.visibility = if (selectionMode) View.VISIBLE else View.GONE
-            check.isChecked = index in selected
-
-            val actions = row.findViewById<View>(R.id.btnFavWalk).parent as ViewGroup
+            check.isChecked = item.index in selected
             actions.visibility = if (selectionMode) View.GONE else View.VISIBLE
-            row.findViewById<MaterialButton>(R.id.btnMenu).apply {
-                visibility = if (selectionMode) View.GONE else View.VISIBLE
-                setOnClickListener { v -> showItemMenu(v, index, fav) }
-            }
-            row.findViewById<MaterialButton>(R.id.btnFavWalk).setOnClickListener {
-                choose(fav, ACTION_WALK)
-            }
-            row.findViewById<MaterialButton>(R.id.btnFavTeleport).setOnClickListener {
-                choose(fav, ACTION_TELEPORT)
-            }
-            val chooser = row.findViewById<View>(R.id.rowChoose)
-            chooser.setOnClickListener {
-                if (selectionMode) toggleSelection(index) else choose(fav, ACTION_TELEPORT)
-            }
-            chooser.setOnLongClickListener {
-                if (!selectionMode) enterSelection()
-                toggleSelection(index)
-                true
-            }
-            listContainer.addView(row)
+            menu.visibility = if (selectionMode) View.GONE else View.VISIBLE
         }
     }
 
