@@ -156,6 +156,40 @@
     <string name="dialog_cancel">取消</string>
     <string name="pin_dropped">已在 %1$s, %2$s 放置圖釘並瞬移</string>
 
+    <!-- Batch 4: favorites clear / categories / edit / multi-select -->
+    <string name="fav_clear_all">全部清除</string>
+    <string name="fav_clear_title">清除所有收藏座標</string>
+    <string name="fav_clear_message">將刪除全部 %1$d 筆收藏座標，此動作不可復原。</string>
+    <string name="fav_clear_confirm">清除</string>
+    <string name="fav_cleared">已清除所有收藏座標</string>
+    <string name="fav_clear_empty">尚無收藏可清除</string>
+    <string name="fav_category_all">全部</string>
+    <string name="fav_manage_categories">管理分類</string>
+    <string name="fav_category_add">新增分類</string>
+    <string name="fav_category_add_inline">新增分類…</string>
+    <string name="fav_category_name_hint">分類名稱</string>
+    <string name="fav_category_added">已新增分類「%1$s」</string>
+    <string name="fav_category_duplicate">分類名稱重複或不合法</string>
+    <string name="fav_category_rename_title">重新命名分類</string>
+    <string name="fav_category_delete_title">刪除分類</string>
+    <string name="fav_category_delete_message">刪除「%1$s」後，該分類下的收藏會改為「未分類」。</string>
+    <string name="fav_category_deleted">已刪除分類「%1$s」</string>
+    <string name="fav_move_category">移動到分類</string>
+    <string name="fav_edit_coord">編輯座標</string>
+    <string name="fav_edit_coord_title">編輯座標</string>
+    <string name="fav_lat_hint">緯度（-90 ～ 90）</string>
+    <string name="fav_lng_hint">經度（-180 ～ 180）</string>
+    <string name="fav_lat_invalid">緯度需介於 -90 至 90</string>
+    <string name="fav_lng_invalid">經度需介於 -180 至 180</string>
+    <string name="fav_coord_updated">已更新座標</string>
+    <string name="fav_select_mode">選取</string>
+    <string name="fav_select_exit">取消選取</string>
+    <string name="fav_selected_count">已選取 %1$d 筆</string>
+    <string name="fav_select_none">尚未選取任何收藏</string>
+    <string name="fav_batch_add_category">加入分類</string>
+    <string name="fav_batch_moved">已將 %1$d 筆移至「%2$s」</string>
+    <string name="fav_category_meta">分類：%1$s</string>
+
     <!-- Batch 2: GPX library -->
     <string name="open_gpx_library">GPX</string>
     <string name="gpx_library_title">GPX 管理</string>
@@ -189,4 +223,11 @@
     <string name="notif_overlay_text">點此開啟 app，或按隱藏關閉搖桿</string>
     <string name="notif_action_stop">停止</string>
     <string name="notif_action_hide">隱藏</string>
+
+    <!-- 半徑巡航：儲存為 GPX -->
+    <string name="radius_cruise_save_gpx">儲存為 GPX</string>
+    <string name="radius_cruise_no_route">請先產生半徑巡航路線</string>
+    <string name="radius_cruise_gpx_default_name">半徑巡航 %1$.2f km</string>
+    <string name="radius_cruise_gpx_saved">已儲存至 GPX 庫：%1$s</string>
+    <string name="radius_cruise_gpx_save_failed">儲存失敗，請再試一次</string>
 </resources>

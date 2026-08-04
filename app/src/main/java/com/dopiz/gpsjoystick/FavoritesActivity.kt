@@ -1,11 +1,16 @@
 package com.dopiz.gpsjoystick
 
 import android.app.Activity
+import android.content.DialogInterface
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.text.InputType
 import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -16,21 +21,34 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.checkbox.MaterialCheckBox
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 /**
- * Favorites as a full screen, mirroring [GpxLibraryActivity]: a Material Toolbar (back + title),
- * a list of saved favorites (name + "lat, lng"), and a per-row overflow menu for 重新命名 / 刪除.
+ * Favorites as a full screen, mirroring [GpxLibraryActivity]: a Material Toolbar (back + title +
+ * overflow for 選取 / 管理分類 / 全部清除), a category filter chip row, a list of saved favorites
+ * (name + 分類 + "lat, lng"), and a per-row overflow menu for 重新命名 / 編輯座標 / 移動到分類 / 刪除.
  * Tapping a row CHOOSES that favorite: it returns the coordinate to [MapActivity] via the
- * Activity Result API (EXTRA_FAV_LAT / EXTRA_FAV_LNG).
+ * Activity Result API (EXTRA_FAV_LAT / EXTRA_FAV_LNG). Long-pressing a row enters multi-select,
+ * where the bottom bar batch-moves the checked rows into one category.
  */
 class FavoritesActivity : AppCompatActivity() {
 
     private lateinit var listContainer: LinearLayout
     private lateinit var emptyHint: TextView
+    private lateinit var categoryChips: ChipGroup
+    private lateinit var selectionBar: LinearLayout
+    private lateinit var selectionCount: TextView
+
+    /** null = 「全部」 */
+    private var filterCategory: String? = null
+    private var selectionMode = false
+    private val selected = mutableSetOf<Int>()
 
     private val importLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -53,6 +71,9 @@ class FavoritesActivity : AppCompatActivity() {
 
         listContainer = findViewById(R.id.listContainer)
         emptyHint = findViewById(R.id.emptyHint)
+        categoryChips = findViewById(R.id.categoryChips)
+        selectionBar = findViewById(R.id.selectionBar)
+        selectionCount = findViewById(R.id.selectionCount)
 
         findViewById<MaterialButton>(R.id.btnExport).setOnClickListener {
             if (FavoritesStore.list(this).isEmpty()) {
@@ -64,6 +85,388 @@ class FavoritesActivity : AppCompatActivity() {
         }
         findViewById<MaterialButton>(R.id.btnImport).setOnClickListener {
             importLauncher.launch(arrayOf("application/json", "*/*"))
+        }
+        findViewById<MaterialButton>(R.id.btnBatchCategory).setOnClickListener { batchCategory() }
+        findViewById<MaterialButton>(R.id.btnSelectExit).setOnClickListener { exitSelection() }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.favorites, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
+        R.id.action_select_mode -> {
+            if (selectionMode) exitSelection() else enterSelection()
+            true
+        }
+        R.id.action_manage_categories -> { manageCategoriesDialog(); true }
+        R.id.action_clear_all -> { clearAllDialog(); true }
+        else -> super.onOptionsItemSelected(item)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        render()
+    }
+
+    // ---- 一鍵清除 ---------------------------------------------------------
+
+    private fun clearAllDialog() {
+        val count = FavoritesStore.list(this).size
+        if (count == 0) {
+            Toast.makeText(this, R.string.fav_clear_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.fav_clear_title)
+            .setMessage(getString(R.string.fav_clear_message, count))
+            .setPositiveButton(R.string.fav_clear_confirm) { _, _ ->
+                FavoritesStore.clear(this)
+                exitSelection()
+                Toast.makeText(this, R.string.fav_cleared, Toast.LENGTH_SHORT).show()
+                render()
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+        dialog.getButton(DialogInterface.BUTTON_POSITIVE)
+            ?.setTextColor(getColor(R.color.brand_error))
+    }
+
+    // ---- 分類 -------------------------------------------------------------
+
+    private fun renderChips() {
+        categoryChips.removeAllViews()
+        val options = listOf<String?>(null) + FavoritesStore.listCategories(this)
+        if (filterCategory != null && filterCategory !in options) filterCategory = null
+        options.forEachIndexed { i, name ->
+            val chip = Chip(this).apply {
+                id = View.generateViewId()
+                text = name ?: getString(R.string.fav_category_all)
+                isCheckable = true
+                isCheckedIconVisible = false
+                isChecked = name == filterCategory
+                setOnClickListener {
+                    filterCategory = name
+                    renderList()
+                }
+            }
+            categoryChips.addView(chip, i)
+        }
+    }
+
+    private fun manageCategoriesDialog() {
+        val custom = FavoritesStore.listCategories(this).drop(1)
+        val labels = (custom + getString(R.string.fav_category_add)).toTypedArray()
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.fav_manage_categories)
+            .setItems(labels) { _, which ->
+                if (which == custom.size) addCategoryDialog { render(); manageCategoriesDialog() }
+                else categoryActionsDialog(custom[which])
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+    }
+
+    private fun categoryActionsDialog(name: String) {
+        val actions = arrayOf(getString(R.string.gpx_rename), getString(R.string.gpx_delete))
+        MaterialAlertDialogBuilder(this)
+            .setTitle(name)
+            .setItems(actions) { _, which ->
+                if (which == 0) renameCategoryDialog(name) else deleteCategoryDialog(name)
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+    }
+
+    private fun addCategoryDialog(onAdded: (String) -> Unit) {
+        val input = textInput("", getString(R.string.fav_category_name_hint))
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.fav_category_add)
+            .setView(wrap(input))
+            .setPositiveButton(R.string.dialog_save) { _, _ ->
+                val name = input.text.toString().trim()
+                val existing = FavoritesStore.listCategories(this).drop(1)
+                when {
+                    FavoritesStore.addCategory(this, name) -> {
+                        Toast.makeText(
+                            this, getString(R.string.fav_category_added, name), Toast.LENGTH_SHORT
+                        ).show()
+                        onAdded(name)
+                    }
+                    existing.contains(name) -> onAdded(name)
+                    else -> Toast.makeText(this, R.string.fav_category_duplicate, Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+    }
+
+    private fun renameCategoryDialog(old: String) {
+        val input = textInput(old, getString(R.string.fav_category_name_hint))
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.fav_category_rename_title)
+            .setView(wrap(input))
+            .setPositiveButton(R.string.dialog_save) { _, _ ->
+                val name = input.text.toString().trim()
+                if (FavoritesStore.renameCategory(this, old, name)) {
+                    if (filterCategory == old) filterCategory = name
+                    render()
+                } else {
+                    Toast.makeText(this, R.string.fav_category_duplicate, Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+    }
+
+    private fun deleteCategoryDialog(name: String) {
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.fav_category_delete_title)
+            .setMessage(getString(R.string.fav_category_delete_message, name))
+            .setPositiveButton(R.string.gpx_delete) { _, _ ->
+                FavoritesStore.deleteCategory(this, name)
+                if (filterCategory == name) filterCategory = null
+                Toast.makeText(
+                    this, getString(R.string.fav_category_deleted, name), Toast.LENGTH_SHORT
+                ).show()
+                render()
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+        dialog.getButton(DialogInterface.BUTTON_POSITIVE)
+            ?.setTextColor(getColor(R.color.brand_error))
+    }
+
+    /** Pick one category (with an inline 「新增分類…」 escape hatch) then hand it to [onPicked]. */
+    private fun pickCategoryDialog(titleRes: Int, onPicked: (String) -> Unit) {
+        val cats = FavoritesStore.listCategories(this)
+        val labels = (cats + getString(R.string.fav_category_add_inline)).toTypedArray()
+        MaterialAlertDialogBuilder(this)
+            .setTitle(titleRes)
+            .setItems(labels) { _, which ->
+                if (which == cats.size) addCategoryDialog { onPicked(it) } else onPicked(cats[which])
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+    }
+
+    // ---- 多選 -------------------------------------------------------------
+
+    private fun enterSelection() {
+        selectionMode = true
+        selected.clear()
+        render()
+    }
+
+    private fun exitSelection() {
+        selectionMode = false
+        selected.clear()
+        render()
+    }
+
+    private fun toggleSelection(index: Int) {
+        if (!selected.add(index)) selected.remove(index)
+        renderList()
+    }
+
+    private fun batchCategory() {
+        if (selected.isEmpty()) {
+            Toast.makeText(this, R.string.fav_select_none, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val targets = selected.toList()
+        pickCategoryDialog(R.string.fav_batch_add_category) { category ->
+            FavoritesStore.setCategory(this, targets, category)
+            Toast.makeText(
+                this,
+                getString(R.string.fav_batch_moved, targets.size, category),
+                Toast.LENGTH_SHORT,
+            ).show()
+            exitSelection()
+        }
+    }
+
+    // ---- 列表 -------------------------------------------------------------
+
+    private fun render() {
+        renderChips()
+        renderList()
+    }
+
+    private fun renderList() {
+        listContainer.removeAllViews()
+        val all = FavoritesStore.list(this)
+        val visible = all.withIndex().filter { (_, f) ->
+            filterCategory == null || f.category == filterCategory
+        }
+        val current = MockLocationService.state.value
+        emptyHint.visibility = if (visible.isEmpty()) View.VISIBLE else View.GONE
+        selectionBar.visibility = if (selectionMode) View.VISIBLE else View.GONE
+        selectionCount.text = getString(R.string.fav_selected_count, selected.size)
+
+        val inflater = LayoutInflater.from(this)
+        visible.forEach { (index, fav) ->
+            val row = inflater.inflate(R.layout.item_favorite, listContainer, false)
+            val estimate = PokemonGoCooldown.estimate(
+                current.latitude, current.longitude, fav.lat, fav.lng
+            )
+            row.findViewById<TextView>(R.id.favName).text = fav.label
+            row.findViewById<TextView>(R.id.favMeta).text = "${fmt(fav.lat)}, ${fmt(fav.lng)}"
+            row.findViewById<TextView>(R.id.favCategory).text =
+                getString(R.string.fav_category_meta, fav.category)
+            row.findViewById<TextView>(R.id.favCooldown).text = getString(
+                R.string.fav_cooldown,
+                formatDistance(estimate.distanceMeters),
+                formatCooldown(estimate.waitSeconds),
+            )
+            val check = row.findViewById<MaterialCheckBox>(R.id.favCheck)
+            check.visibility = if (selectionMode) View.VISIBLE else View.GONE
+            check.isChecked = index in selected
+
+            val actions = row.findViewById<View>(R.id.btnFavWalk).parent as ViewGroup
+            actions.visibility = if (selectionMode) View.GONE else View.VISIBLE
+            row.findViewById<MaterialButton>(R.id.btnMenu).apply {
+                visibility = if (selectionMode) View.GONE else View.VISIBLE
+                setOnClickListener { v -> showItemMenu(v, index, fav) }
+            }
+            row.findViewById<MaterialButton>(R.id.btnFavWalk).setOnClickListener {
+                choose(fav, ACTION_WALK)
+            }
+            row.findViewById<MaterialButton>(R.id.btnFavTeleport).setOnClickListener {
+                choose(fav, ACTION_TELEPORT)
+            }
+            val chooser = row.findViewById<View>(R.id.rowChoose)
+            chooser.setOnClickListener {
+                if (selectionMode) toggleSelection(index) else choose(fav, ACTION_TELEPORT)
+            }
+            chooser.setOnLongClickListener {
+                if (!selectionMode) enterSelection()
+                toggleSelection(index)
+                true
+            }
+            listContainer.addView(row)
+        }
+    }
+
+    private fun choose(fav: FavoritesStore.Fav, action: String) {
+        setResult(
+            Activity.RESULT_OK,
+            Intent()
+                .putExtra(EXTRA_FAV_LAT, fav.lat)
+                .putExtra(EXTRA_FAV_LNG, fav.lng)
+                .putExtra(EXTRA_FAV_ACTION, action),
+        )
+        finish()
+    }
+
+    private fun showItemMenu(anchor: View, index: Int, fav: FavoritesStore.Fav) {
+        PopupMenu(this, anchor).apply {
+            menuInflater.inflate(R.menu.favorite_item, menu)
+            setOnMenuItemClickListener { item ->
+                when (item.itemId) {
+                    R.id.action_rename -> { renameDialog(index, fav); true }
+                    R.id.action_edit_coord -> { editCoordDialog(index, fav); true }
+                    R.id.action_move_category -> {
+                        pickCategoryDialog(R.string.fav_move_category) { category ->
+                            FavoritesStore.setCategory(this@FavoritesActivity, listOf(index), category)
+                            Toast.makeText(
+                                this@FavoritesActivity,
+                                getString(R.string.fav_batch_moved, 1, category),
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                            render()
+                        }
+                        true
+                    }
+                    R.id.action_delete -> { deleteDialog(index, fav); true }
+                    else -> false
+                }
+            }
+            show()
+        }
+    }
+
+    private fun renameDialog(index: Int, fav: FavoritesStore.Fav) {
+        val input = textInput(fav.label, getString(R.string.fav_name_hint))
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.fav_rename_title)
+            .setView(wrap(input))
+            .setPositiveButton(R.string.dialog_save) { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isNotEmpty()) {
+                    FavoritesStore.rename(this, index, name)
+                    render()
+                }
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+    }
+
+    /** Two decimal fields; invalid values show an inline error and keep the dialog open. */
+    private fun editCoordDialog(index: Int, fav: FavoritesStore.Fav) {
+        val decimal = InputType.TYPE_CLASS_NUMBER or
+            InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
+        val latInput = textInput(fmt(fav.lat), getString(R.string.fav_lat_hint), decimal)
+        val lngInput = textInput(fmt(fav.lng), getString(R.string.fav_lng_hint), decimal)
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad / 2, pad, 0)
+            addView(latInput)
+            addView(lngInput)
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.fav_edit_coord_title)
+            .setView(container)
+            .setPositiveButton(R.string.dialog_save, null)
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+        dialog.getButton(DialogInterface.BUTTON_POSITIVE)?.setOnClickListener {
+            val lat = latInput.text.toString().trim().toDoubleOrNull()
+            val lng = lngInput.text.toString().trim().toDoubleOrNull()
+            var ok = true
+            if (lat == null || lat < -90.0 || lat > 90.0) {
+                latInput.error = getString(R.string.fav_lat_invalid); ok = false
+            }
+            if (lng == null || lng < -180.0 || lng > 180.0) {
+                lngInput.error = getString(R.string.fav_lng_invalid); ok = false
+            }
+            if (!ok) return@setOnClickListener
+            FavoritesStore.updateAt(this, index, fav.copy(lat = lat!!, lng = lng!!))
+            Toast.makeText(this, R.string.fav_coord_updated, Toast.LENGTH_SHORT).show()
+            dialog.dismiss()
+            render()
+        }
+    }
+
+    private fun deleteDialog(index: Int, fav: FavoritesStore.Fav) {
+        MaterialAlertDialogBuilder(this)
+            .setMessage(getString(R.string.fav_delete_confirm, fav.label))
+            .setPositiveButton(R.string.gpx_delete) { _, _ ->
+                FavoritesStore.removeAt(this, index)
+                selected.clear()
+                Toast.makeText(this, getString(R.string.fav_deleted, fav.label), Toast.LENGTH_SHORT).show()
+                render()
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+    }
+
+    private fun textInput(value: String, hintText: String, type: Int? = null): EditText =
+        EditText(this).apply {
+            setText(value)
+            hint = hintText
+            setSingleLine()
+            type?.let { inputType = it }
+            setSelection(text.length)
+        }
+
+    private fun wrap(view: View): View {
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        return FrameLayout(this).apply {
+            setPadding(pad, pad / 2, pad, 0)
+            addView(view)
         }
     }
 
@@ -97,104 +500,6 @@ class FavoritesActivity : AppCompatActivity() {
                 this, getString(R.string.fav_import_failed, e.message ?: "?"), Toast.LENGTH_LONG
             ).show()
         }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        render()
-    }
-
-    private fun render() {
-        listContainer.removeAllViews()
-        val favs = FavoritesStore.list(this)
-        val current = MockLocationService.state.value
-        emptyHint.visibility = if (favs.isEmpty()) View.VISIBLE else View.GONE
-        val inflater = LayoutInflater.from(this)
-        favs.forEachIndexed { index, fav ->
-            val row = inflater.inflate(R.layout.item_favorite, listContainer, false)
-            val estimate = PokemonGoCooldown.estimate(
-                current.latitude, current.longitude, fav.lat, fav.lng
-            )
-            row.findViewById<TextView>(R.id.favName).text = fav.label
-            row.findViewById<TextView>(R.id.favMeta).text = "${fmt(fav.lat)}, ${fmt(fav.lng)}"
-            row.findViewById<TextView>(R.id.favCooldown).text = getString(
-                R.string.fav_cooldown,
-                formatDistance(estimate.distanceMeters),
-                formatCooldown(estimate.waitSeconds),
-            )
-            row.findViewById<MaterialButton>(R.id.btnFavWalk).setOnClickListener {
-                choose(fav, ACTION_WALK)
-            }
-            row.findViewById<MaterialButton>(R.id.btnFavTeleport).setOnClickListener {
-                choose(fav, ACTION_TELEPORT)
-            }
-            row.findViewById<MaterialButton>(R.id.btnMenu).setOnClickListener { v ->
-                showItemMenu(v, index, fav)
-            }
-            listContainer.addView(row)
-        }
-    }
-
-    private fun choose(fav: FavoritesStore.Fav, action: String) {
-        setResult(
-            Activity.RESULT_OK,
-            Intent()
-                .putExtra(EXTRA_FAV_LAT, fav.lat)
-                .putExtra(EXTRA_FAV_LNG, fav.lng)
-                .putExtra(EXTRA_FAV_ACTION, action),
-        )
-        finish()
-    }
-
-    private fun showItemMenu(anchor: View, index: Int, fav: FavoritesStore.Fav) {
-        PopupMenu(this, anchor).apply {
-            menuInflater.inflate(R.menu.favorite_item, menu)
-            setOnMenuItemClickListener { item ->
-                when (item.itemId) {
-                    R.id.action_rename -> { renameDialog(index, fav); true }
-                    R.id.action_delete -> { deleteDialog(index, fav); true }
-                    else -> false
-                }
-            }
-            show()
-        }
-    }
-
-    private fun renameDialog(index: Int, fav: FavoritesStore.Fav) {
-        val pad = (16 * resources.displayMetrics.density).toInt()
-        val input = EditText(this).apply {
-            setText(fav.label)
-            setSelection(text.length)
-            setSingleLine()
-        }
-        val container = FrameLayout(this).apply {
-            setPadding(pad, pad / 2, pad, 0)
-            addView(input)
-        }
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.fav_rename_title)
-            .setView(container)
-            .setPositiveButton(R.string.dialog_save) { _, _ ->
-                val name = input.text.toString().trim()
-                if (name.isNotEmpty()) {
-                    FavoritesStore.rename(this, index, name)
-                    render()
-                }
-            }
-            .setNegativeButton(R.string.dialog_cancel, null)
-            .show()
-    }
-
-    private fun deleteDialog(index: Int, fav: FavoritesStore.Fav) {
-        MaterialAlertDialogBuilder(this)
-            .setMessage(getString(R.string.fav_delete_confirm, fav.label))
-            .setPositiveButton(R.string.gpx_delete) { _, _ ->
-                FavoritesStore.removeAt(this, index)
-                Toast.makeText(this, getString(R.string.fav_deleted, fav.label), Toast.LENGTH_SHORT).show()
-                render()
-            }
-            .setNegativeButton(R.string.dialog_cancel, null)
-            .show()
     }
 
     private fun fmt(v: Double): String = "%.5f".format(v)

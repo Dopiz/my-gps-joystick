@@ -19,6 +19,15 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/favCheck"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:clickable="false"
+            android:focusable="false"
+            android:visibility="gone" />
+
         <LinearLayout
             android:id="@+id/rowChoose"
             android:layout_width="0dp"
@@ -44,6 +53,15 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:fontFeatureSettings="tnum"
+                android:textAppearance="@style/TextAppearance.GpsJoystick.Label" />
+
+            <TextView
+                android:id="@+id/favCategory"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:textAppearance="@style/TextAppearance.GpsJoystick.Label" />
 
             <TextView
