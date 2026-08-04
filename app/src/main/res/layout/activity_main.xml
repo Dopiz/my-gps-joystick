@@ -177,6 +177,37 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- 傳送冷卻倒數：沒有冷卻時整張卡 GONE -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cooldownCard"
+            style="@style/Widget.GpsJoystick.Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/cooldown_card_title"
+                    android:textAppearance="@style/TextAppearance.GpsJoystick.Title" />
+
+                <TextView
+                    android:id="@+id/cooldownText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:fontFeatureSettings="tnum"
+                    android:textColor="@color/brand_primary"
+                    android:textAppearance="@style/TextAppearance.GpsJoystick.Body" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- Position + primary actions -->
         <com.google.android.material.card.MaterialCardView
             style="@style/Widget.GpsJoystick.Card"

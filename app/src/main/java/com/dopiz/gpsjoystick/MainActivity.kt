@@ -12,6 +12,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.Lifecycle
 import com.dopiz.gpsjoystick.databinding.ActivityMainBinding
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -69,6 +71,33 @@ class MainActivity : AppCompatActivity() {
 
         maybeRequestNotifications()
         observeService()
+        observeCooldown()
+    }
+
+    /**
+     * Tick the cooldown card once a second while resumed; repeatOnLifecycle cancels the loop when
+     * the user leaves, so a backgrounded home screen does no work.
+     */
+    private fun observeCooldown() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                while (isActive) {
+                    renderCooldown()
+                    delay(1000)
+                }
+            }
+        }
+    }
+
+    private fun renderCooldown() {
+        val left = CooldownStore.remainingSeconds(this)
+        if (left <= 0) {
+            binding.cooldownCard.visibility = View.GONE
+            return
+        }
+        binding.cooldownCard.visibility = View.VISIBLE
+        binding.cooldownText.text =
+            getString(R.string.cooldown_card_remaining, CooldownStore.format(left))
     }
 
     override fun onResume() {

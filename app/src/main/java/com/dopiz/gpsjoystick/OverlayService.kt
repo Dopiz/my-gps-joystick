@@ -9,9 +9,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.View
@@ -26,7 +29,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -55,6 +60,13 @@ class OverlayService : Service() {
     // --- Hub window ---
     private var hubView: RadialMenuView? = null
     private var hubParams: WindowManager.LayoutParams? = null
+
+    // --- 冷卻倒數小標籤 (its own pill window hugging the hub; only present while cooling down) ---
+    private var cooldownView: TextView? = null
+    private var cooldownParams: WindowManager.LayoutParams? = null
+    private var cooldownJob: Job? = null
+    private val cooldownW by lazy { (density * 86).toInt() }
+    private val cooldownH by lazy { (density * 24).toInt() }
 
     // --- Child buttons (each hosted in its own window when visible) ---
     private var btnMap: ChildButton? = null
@@ -179,6 +191,7 @@ class OverlayService : Service() {
 
         applyState()
         startObserving()
+        startCooldownTicker()
 
         // On a fresh 開始模擬 the joystick shows by default; otherwise re-show it only if it was
         // visible last time.
@@ -367,6 +380,7 @@ class OverlayService : Service() {
         mapOpen = false
         tapOpen = false
         columnButtons.forEachIndexed { i, b -> addChildWin(b, columnCenterX(), columnCenterY(i)) }
+        positionCooldownBadge()   // vDir may have flipped: keep the badge off the column
         v.setExpandedVisual(true)
         applyState()
     }
@@ -443,6 +457,7 @@ class OverlayService : Service() {
         params.y = clampInt(params.y + dy.toInt(), 0, dm.heightPixels - view.hubPx)
         runCatching { windowManager.updateViewLayout(view, params) }
         relayoutChildren()
+        positionCooldownBadge()
     }
 
     private fun clampInt(v: Int, lo: Int, hi: Int): Int =
@@ -458,6 +473,74 @@ class OverlayService : Service() {
             launch { MockLocationService.state.collectLatest { applyState() } }
             launch { AutoTapService.running.collectLatest { applyState() } }
         }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // 冷卻倒數標籤 (the overlay is the only surface visible while the user is in the game)
+    // ---------------------------------------------------------------------------------------
+
+    /** Poll [CooldownStore] once a second; the badge only exists while there is time left. */
+    private fun startCooldownTicker() {
+        cooldownJob?.cancel()
+        cooldownJob = scope.launch {
+            while (isActive) {
+                renderCooldown()
+                delay(1_000)
+            }
+        }
+    }
+
+    private fun renderCooldown() {
+        // The point picker hides the hub, so hide the badge with it (the ticker re-adds it after).
+        val left = if (pickRoot != null) 0L else CooldownStore.remainingSeconds(this)
+        if (left <= 0L) {
+            removeCooldownBadge()
+            return
+        }
+        val tv = cooldownView ?: addCooldownBadge() ?: return
+        tv.text = getString(R.string.overlay_cooldown, CooldownStore.format(left))
+    }
+
+    /** Pill styled off the [ChildButton] palette (opaque surface_variant + outline ring, on_surface text). */
+    private fun addCooldownBadge(): TextView? {
+        if (hubView == null) return null
+        val tv = TextView(this).apply {
+            gravity = Gravity.CENTER
+            setTextColor(0xFFE5EDF5.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                cornerRadius = cooldownH / 2f
+                setColor(0xFF1B242E.toInt())
+                setStroke((density * 1.6f).toInt(), 0xFF2A3542.toInt())
+            }
+        }
+        cooldownParams = baseParams(cooldownW, cooldownH)
+        positionCooldownBadge()                       // fills x/y before the view exists in the WM
+        cooldownView = tv
+        runCatching { windowManager.addView(tv, cooldownParams) }
+        return tv
+    }
+
+    /**
+     * Centre the badge on the hub and park it on the side the child column does NOT grow toward, so
+     * it never covers a button; fall back to the other side when there is no room on screen.
+     */
+    private fun positionCooldownBadge() {
+        val v = hubView ?: return
+        val p = cooldownParams ?: return
+        val gap = density * 6f
+        p.x = (hubCx() - cooldownW / 2f).toInt()
+        val above = (hubCy() - v.hubPx / 2f - gap).toInt() - cooldownH
+        val below = (hubCy() + v.hubPx / 2f + gap).toInt()
+        p.y = if (vDir > 0 && above >= 0) above else below
+        cooldownView?.let { runCatching { windowManager.updateViewLayout(it, p) } }
+    }
+
+    private fun removeCooldownBadge() {
+        cooldownView?.let { runCatching { windowManager.removeView(it) } }
+        cooldownView = null
+        cooldownParams = null
     }
 
     private fun applyState() {
@@ -696,6 +779,7 @@ class OverlayService : Service() {
         pickRoot = root
         pickInner = pick
         runCatching { windowManager.addView(root, fullscreenParams()) }
+        renderCooldown()   // drops the badge now that pickRoot is up
     }
 
     private fun exitAutoTapPick(save: Boolean) {
@@ -705,6 +789,7 @@ class OverlayService : Service() {
         pickInner = null
         hubView?.visibility = View.VISIBLE
         joystickView?.visibility = View.VISIBLE
+        renderCooldown()
         applyState()
     }
 
@@ -751,6 +836,9 @@ class OverlayService : Service() {
     private fun teardown() {
         observeJob?.cancel()
         observeJob = null
+        cooldownJob?.cancel()
+        cooldownJob = null
+        removeCooldownBadge()
         // 連點 must not keep firing after the overlay is gone.
         AutoTapService.instance?.stopTapping()
         pickRoot?.let { runCatching { windowManager.removeView(it) } }

@@ -17,6 +17,20 @@
         app:title="@string/open_map"
         app:titleTextColor="@color/on_surface" />
 
+    <!-- 傳送冷卻倒數橫幅：僅在冷卻中顯示（沿用 favCooldown 的 brand_primary 用色） -->
+    <TextView
+        android:id="@+id/cooldownBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surface_variant"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="8dp"
+        android:gravity="center"
+        android:fontFeatureSettings="tnum"
+        android:textColor="@color/brand_primary"
+        android:textAppearance="@style/TextAppearance.GpsJoystick.Label"
+        android:visibility="gone" />
+
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"

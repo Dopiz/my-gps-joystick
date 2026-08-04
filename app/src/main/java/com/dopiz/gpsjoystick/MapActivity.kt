@@ -18,6 +18,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.dopiz.gpsjoystick.databinding.ActivityMapBinding
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
@@ -152,6 +154,7 @@ class MapActivity : AppCompatActivity() {
         setupModeChips()
         setupSpeedChips()
         observeMockState()
+        observeCooldown()
 
         restoreRouteForThisProcess()
     }
@@ -581,12 +584,52 @@ class MapActivity : AppCompatActivity() {
 
     /** Teleport (glides via the service when running) + recenter the map. */
     private fun teleportTo(lat: Double, lng: Double, status: String) {
+        recordCooldownFor(lat, lng)
         MockLocationService.update(this, lat, lng)
         val gp = GeoPoint(lat, lng)
         marker.position = gp
         binding.map.controller.animateTo(gp)
         binding.map.invalidate()
         Toast.makeText(this, status, Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * Start (or restart) the post-teleport cooldown, measured from the position we are leaving.
+     * Only jumps count — 走路 (startWalkTo) never lands here. Without a live mock there is no
+     * "from" position yet, so nothing is recorded.
+     */
+    private fun recordCooldownFor(toLat: Double, toLng: Double) {
+        val s = MockLocationService.state.value
+        if (!s.isRunning) return
+        val wait = PokemonGoCooldown.estimate(s.latitude, s.longitude, toLat, toLng).waitSeconds
+        if (wait > 0) CooldownStore.start(this, wait) else CooldownStore.clear(this)
+        renderCooldown()
+    }
+
+    /**
+     * Tick the banner once a second, but only while the activity is resumed (repeatOnLifecycle
+     * cancels the loop on pause) so a backgrounded map costs nothing.
+     */
+    private fun observeCooldown() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                while (isActive) {
+                    renderCooldown()
+                    delay(1000)
+                }
+            }
+        }
+    }
+
+    private fun renderCooldown() {
+        val left = CooldownStore.remainingSeconds(this)
+        if (left <= 0) {
+            binding.cooldownBanner.visibility = View.GONE
+            return
+        }
+        binding.cooldownBanner.visibility = View.VISIBLE
+        binding.cooldownBanner.text =
+            getString(R.string.cooldown_banner, CooldownStore.format(left))
     }
 
     /** Drop / move the single preview pin at [p] without moving the mock. */

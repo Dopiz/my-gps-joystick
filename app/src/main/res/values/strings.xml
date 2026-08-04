@@ -152,6 +152,12 @@
     <string name="cooldown_minutes">%1$d 分鐘</string>
     <string name="cooldown_hours">%1$d 小時</string>
     <string name="cooldown_hours_minutes">%1$d 小時 %2$d 分鐘</string>
+    <!-- Post-teleport live countdown (map banner / home card / notification) -->
+    <string name="cooldown_banner">傳送冷卻中 · 剩餘 %1$s</string>
+    <string name="cooldown_card_title">傳送冷卻</string>
+    <string name="cooldown_card_remaining">剩餘 %1$s</string>
+    <string name="notif_cooldown_text">冷卻剩餘 %1$s · %2$s, %3$s</string>
+    <string name="overlay_cooldown">冷卻 %1$s</string>
     <string name="dialog_save">儲存</string>
     <string name="dialog_cancel">取消</string>
     <string name="pin_dropped">已在 %1$s, %2$s 放置圖釘並瞬移</string>
